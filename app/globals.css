@@ -1,0 +1,72 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-paper text-ink font-sans antialiased;
+    font-feature-settings: "kern" 1, "liga" 1;
+  }
+
+  /* Numbers in tables and evidence rows must align column-to-column. */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
+
+  :focus-visible {
+    outline: 2px solid theme("colors.signal");
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  ::selection {
+    background: #0f5f5522;
+  }
+}
+
+@layer components {
+  /* The hairline rule is the primary structural device across the app. */
+  .rule-t {
+    @apply border-t border-rule;
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-micro font-medium uppercase tracking-wider;
+  }
+
+  .card {
+    @apply rounded-lg border border-rule bg-surface;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-colors duration-150 min-h-[44px];
+  }
+
+  .btn-primary {
+    @apply btn bg-signal text-paper hover:bg-[#0c4d45];
+  }
+
+  .btn-quiet {
+    @apply btn border border-rule bg-surface text-ink hover:border-ink/30 hover:bg-paper;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
