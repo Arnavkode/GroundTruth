@@ -1,30 +1,39 @@
+import { Redis } from "@upstash/redis";
+
 /**
  * Spend guard for real Anthropic calls.
  *
- * Two independent limits, both fail-safe: when either is exhausted the caller
- * is routed to mock mode rather than erroring. A user always gets a working
- * resolution; the only thing that degrades is whether the reasoning step is a
- * live model call.
+ * Five independent triggers, all failing the same safe way — when any of them
+ * says no, the request is routed to mock reasoning rather than erroring. A user
+ * always gets a working resolution; the only thing that degrades is whether the
+ * reasoning step was a live model call.
  *
- *   - Per IP:  RATE_LIMIT_PER_IP_PER_HOUR   (default 10) — sliding 1h window
- *   - Global:  DAILY_REAL_CALL_CAP          (default 200) — rolling 24h window
+ *   1. DISABLE_REAL_MODE=1        kill switch, beats everything
+ *   2. No / placeholder API key   nothing to spend with
+ *   3. Per IP, per hour           RATE_LIMIT_PER_IP_PER_HOUR (default 3)
+ *   4. Global calls per day       DAILY_REAL_CALL_CAP (default 200)
+ *   5. Global dollars per day     DAILY_SPEND_CAP_USD (default 5)
  *
- * The store is in-memory and therefore scoped to one serverless instance. That
- * is deliberate for tonight: it needs no signup, costs nothing, and errs
- * conservatively per instance. See MORNING_CHECKLIST.md for the Upstash Redis
- * upgrade if you want a cap that holds across cold starts.
+ * The store is Upstash Redis when UPSTASH_REDIS_REST_URL / _TOKEN are set, and
+ * an in-process map otherwise. That distinction matters: Vercel runs many
+ * concurrent instances, so an in-memory limiter gives each instance its own
+ * budget and the effective public limit is (configured limit × instances).
+ * Redis makes the cap global and real.
  */
 
 const HOUR_MS = 3_600_000;
-const DAY_MS = 86_400_000;
+const DAY_SECONDS = 86_400;
 
 export type Mode = "real" | "mock";
 
 export type DecisionReason =
   | "no-api-key"
   | "forced-mock"
+  | "kill-switch"
   | "ip-limit-exceeded"
   | "daily-cap-reached"
+  | "spend-cap-reached"
+  | "upload-cap-reached"
   | "allowed";
 
 export interface Decision {
@@ -34,28 +43,45 @@ export interface Decision {
   message: string;
   ipRemaining: number;
   dailyRemaining: number;
-  /** When the oldest call in this IP's window falls out, ms epoch. */
-  resetAt: number | null;
+  spendUsedUsd: number;
+  spendCapUsd: number;
+  /** Which store answered — "redis" means the cap is global, not per-instance. */
+  store: "redis" | "memory";
 }
 
-interface Store {
-  byIp: Map<string, number[]>;
-  global: number[];
-}
-
-/** Survives hot reload in dev; one instance per serverless container in prod. */
-const store: Store = ((globalThis as Record<string, unknown>).__gtRateLimit as Store) ?? {
-  byIp: new Map<string, number[]>(),
-  global: [],
-};
-(globalThis as Record<string, unknown>).__gtRateLimit = store;
+/* ─────────────────────────── configuration ────────────────────────────────*/
 
 export function perIpLimit(): number {
-  return Number(process.env.RATE_LIMIT_PER_IP_PER_HOUR ?? 10);
+  return Number(process.env.RATE_LIMIT_PER_IP_PER_HOUR ?? 3);
 }
-
 export function dailyCap(): number {
   return Number(process.env.DAILY_REAL_CALL_CAP ?? 200);
+}
+export function dailySpendCapUsd(): number {
+  return Number(process.env.DAILY_SPEND_CAP_USD ?? 5);
+}
+export function realModeDisabled(): boolean {
+  return process.env.DISABLE_REAL_MODE === "1";
+}
+
+/**
+ * Per-1M-token prices for the configured model. Used both to convert reported
+ * usage into dollars and to reserve headroom before a call is allowed.
+ */
+export const PRICING = { inputPerMTok: 3, outputPerMTok: 15 } as const;
+
+/**
+ * The most one call can plausibly cost: a large bundle in, max_tokens out.
+ * A call is only permitted if the remaining budget covers this, so the cap is
+ * never overshot by a call that was already in flight when it was checked.
+ */
+export const WORST_CASE_CALL_USD = 0.05;
+
+export function usdForUsage(inputTokens: number, outputTokens: number): number {
+  return (
+    (inputTokens / 1_000_000) * PRICING.inputPerMTok +
+    (outputTokens / 1_000_000) * PRICING.outputPerMTok
+  );
 }
 
 /** A placeholder key is treated exactly like no key at all. */
@@ -66,88 +92,280 @@ export function hasRealApiKey(): boolean {
   return key.startsWith("sk-ant-");
 }
 
-function prune(times: number[], now: number, windowMs: number): number[] {
-  const cutoff = now - windowMs;
-  let i = 0;
-  while (i < times.length && times[i] <= cutoff) i += 1;
-  return i === 0 ? times : times.slice(i);
+/* ───────────────────────────── the store ──────────────────────────────────*/
+
+/** The slice of Redis this needs. Kept small so tests can substitute a fake. */
+export interface RedisLike {
+  zadd(key: string, member: { score: number; member: string }): Promise<unknown>;
+  zremrangebyscore(key: string, min: number, max: number): Promise<unknown>;
+  zcard(key: string): Promise<number>;
+  zrem(key: string, member: string): Promise<unknown>;
+  expire(key: string, seconds: number): Promise<unknown>;
+  incr(key: string): Promise<number>;
+  decr(key: string): Promise<number>;
+  incrbyfloat(key: string, value: number): Promise<number | string>;
+  get(key: string): Promise<unknown>;
+}
+
+export interface RateStore {
+  kind: "redis" | "memory";
+  /**
+   * Record a hit in a sliding window and return the resulting count.
+   * Adds first, then counts, then rolls back if over — so concurrent callers
+   * can never both slip past the limit.
+   */
+  tryWindow(key: string, limit: number, windowMs: number, now: number): Promise<{ count: number; allowed: boolean }>;
+  tryCounter(key: string, limit: number): Promise<{ count: number; allowed: boolean }>;
+  getSpend(key: string): Promise<number>;
+  addSpend(key: string, usd: number): Promise<number>;
+  reset(): Promise<void>;
+}
+
+/* ── in-memory (dev, tests, and any deploy without Redis configured) ────────*/
+
+interface MemoryState {
+  windows: Map<string, number[]>;
+  counters: Map<string, number>;
+  spend: Map<string, number>;
+}
+
+function memoryState(): MemoryState {
+  const g = globalThis as Record<string, unknown>;
+  if (!g.__gtRateState) {
+    g.__gtRateState = { windows: new Map(), counters: new Map(), spend: new Map() } as MemoryState;
+  }
+  return g.__gtRateState as MemoryState;
+}
+
+export const memoryStore: RateStore = {
+  kind: "memory",
+  async tryWindow(key, limit, windowMs, now) {
+    const st = memoryState();
+    const times = (st.windows.get(key) ?? []).filter((t) => t > now - windowMs);
+    if (times.length >= limit) {
+      st.windows.set(key, times);
+      return { count: times.length, allowed: false };
+    }
+    times.push(now);
+    st.windows.set(key, times);
+    return { count: times.length, allowed: true };
+  },
+  async tryCounter(key, limit) {
+    const st = memoryState();
+    const next = (st.counters.get(key) ?? 0) + 1;
+    if (next > limit) return { count: next - 1, allowed: false };
+    st.counters.set(key, next);
+    return { count: next, allowed: true };
+  },
+  async getSpend(key) {
+    return memoryState().spend.get(key) ?? 0;
+  },
+  async addSpend(key, usd) {
+    const st = memoryState();
+    const next = (st.spend.get(key) ?? 0) + usd;
+    st.spend.set(key, next);
+    return next;
+  },
+  async reset() {
+    const st = memoryState();
+    st.windows.clear();
+    st.counters.clear();
+    st.spend.clear();
+  },
+};
+
+/* ── Redis-backed (the real thing once Upstash env vars are present) ────────*/
+
+export function redisStore(client: RedisLike): RateStore {
+  return {
+    kind: "redis",
+    async tryWindow(key, limit, windowMs, now) {
+      const member = `${now}-${Math.random().toString(36).slice(2, 10)}`;
+      await client.zadd(key, { score: now, member });
+      await client.zremrangebyscore(key, 0, now - windowMs);
+      await client.expire(key, Math.ceil(windowMs / 1000) + 60);
+      const count = await client.zcard(key);
+      if (count > limit) {
+        // We over-added: take our own entry back out and deny.
+        await client.zrem(key, member);
+        return { count: count - 1, allowed: false };
+      }
+      return { count, allowed: true };
+    },
+    async tryCounter(key, limit) {
+      const count = await client.incr(key);
+      await client.expire(key, DAY_SECONDS + 60);
+      if (count > limit) {
+        await client.decr(key);
+        return { count: count - 1, allowed: false };
+      }
+      return { count, allowed: true };
+    },
+    async getSpend(key) {
+      const v = await client.get(key);
+      return v === null || v === undefined ? 0 : Number(v);
+    },
+    async addSpend(key, usd) {
+      const v = await client.incrbyfloat(key, usd);
+      await client.expire(key, DAY_SECONDS + 60);
+      return Number(v);
+    },
+    async reset() {
+      /* Redis state is intentionally not resettable from app code. */
+    },
+  };
+}
+
+let injectedStore: RateStore | null = null;
+
+/** Test seam: substitute a store (including a fake shared by "instances"). */
+export function __setStoreForTests(store: RateStore | null): void {
+  injectedStore = store;
+}
+
+export function activeStore(): RateStore {
+  if (injectedStore) return injectedStore;
+  const url = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (url && token) {
+    return redisStore(new Redis({ url, token }) as unknown as RedisLike);
+  }
+  return memoryStore;
+}
+
+/* ─────────────────────────── the decision ─────────────────────────────────*/
+
+function dayKey(now: number): string {
+  return new Date(now).toISOString().slice(0, 10);
+}
+
+export interface CheckOptions {
+  now?: number;
+  /**
+   * How many real calls this batch has already made. Bounds one upload's blast
+   * radius independently of the per-IP budget: a 50-row upload cannot spend the
+   * whole day's allowance on its own.
+   */
+  callsThisRun?: number;
+  maxCallsPerRun?: number;
+}
+
+function deny(
+  reason: DecisionReason,
+  message: string,
+  base: Omit<Decision, "mode" | "reason" | "message">,
+): Decision {
+  return { ...base, mode: "mock", reason, message };
 }
 
 /**
- * Decide whether this request may make a real API call, and reserve a slot if
- * so. Call exactly once per resolver run, before any Anthropic call.
+ * Decide whether this request may make a real API call, reserving a slot if so.
+ * Call once per resolver step, immediately before any Anthropic call.
  */
-export function checkRateLimit(ip: string, now: number = Date.now()): Decision {
+export async function checkRateLimit(ip: string, opts: CheckOptions = {}): Promise<Decision> {
+  const now = opts.now ?? Date.now();
+  const store = activeStore();
   const ipMax = perIpLimit();
   const dayMax = dailyCap();
+  const spendCap = dailySpendCapUsd();
+  const day = dayKey(now);
 
-  const ipTimes = prune(store.byIp.get(ip) ?? [], now, HOUR_MS);
-  const globalTimes = prune(store.global, now, DAY_MS);
-  store.byIp.set(ip, ipTimes);
-  store.global = globalTimes;
+  const spendUsed = await store.getSpend(`gt:spend:${day}`);
+  const base = {
+    ipRemaining: 0,
+    dailyRemaining: 0,
+    spendUsedUsd: Number(spendUsed.toFixed(4)),
+    spendCapUsd: spendCap,
+    store: store.kind,
+  };
 
-  const ipRemaining = Math.max(0, ipMax - ipTimes.length);
-  const dailyRemaining = Math.max(0, dayMax - globalTimes.length);
-  const resetAt = ipTimes.length > 0 ? ipTimes[0] + HOUR_MS : null;
-
-  const base = { ipRemaining, dailyRemaining, resetAt };
-
+  // 1. Kill switch — flippable in the Vercel dashboard, no redeploy.
+  if (realModeDisabled()) {
+    return deny("kill-switch", "DISABLE_REAL_MODE is set — all reasoning is mock.", base);
+  }
   if (process.env.FORCE_MOCK_MODE === "1") {
-    return {
-      ...base,
-      mode: "mock",
-      reason: "forced-mock",
-      message: "FORCE_MOCK_MODE is set — using canned reasoning.",
-    };
+    return deny("forced-mock", "FORCE_MOCK_MODE is set — using canned reasoning.", base);
   }
 
+  // 2. Nothing to spend with.
   if (!hasRealApiKey()) {
-    return {
-      ...base,
-      mode: "mock",
-      reason: "no-api-key",
-      message: "No ANTHROPIC_API_KEY present — reasoning is canned, not live.",
-    };
+    return deny(
+      "no-api-key",
+      "No ANTHROPIC_API_KEY present — reasoning is canned, not live.",
+      base,
+    );
   }
 
-  if (globalTimes.length >= dayMax) {
-    return {
-      ...base,
-      mode: "mock",
-      reason: "daily-cap-reached",
-      message: `Global daily cap of ${dayMax} real calls reached — falling back to mock reasoning.`,
-    };
+  // 3. Per-upload blast radius.
+  const maxPerRun = opts.maxCallsPerRun ?? Infinity;
+  if ((opts.callsThisRun ?? 0) >= maxPerRun) {
+    return deny(
+      "upload-cap-reached",
+      `This run has already used its ${maxPerRun} live calls — the rest of the batch is resolved with canned reasoning.`,
+      base,
+    );
   }
 
-  if (ipTimes.length >= ipMax) {
-    return {
-      ...base,
-      mode: "mock",
-      reason: "ip-limit-exceeded",
-      message: `Rate limit reached (${ipMax} real runs per hour per IP) — falling back to mock reasoning.`,
-    };
+  // 4. Dollars before calls: the cap must cover the worst case this call could
+  //    cost, so an in-flight call can never push spend past the ceiling.
+  if (spendUsed + WORST_CASE_CALL_USD > spendCap) {
+    return deny(
+      "spend-cap-reached",
+      `Daily spend cap of $${spendCap.toFixed(2)} reached ($${spendUsed.toFixed(2)} used) — falling back to mock reasoning.`,
+      base,
+    );
   }
 
-  // Reserve the slot.
-  ipTimes.push(now);
-  globalTimes.push(now);
-  store.byIp.set(ip, ipTimes);
-  store.global = globalTimes;
+  // 5. Global daily call count.
+  const daily = await store.tryCounter(`gt:calls:${day}`, dayMax);
+  base.dailyRemaining = Math.max(0, dayMax - daily.count);
+  if (!daily.allowed) {
+    return deny(
+      "daily-cap-reached",
+      `Global daily cap of ${dayMax} real calls reached — falling back to mock reasoning.`,
+      base,
+    );
+  }
+
+  // 6. Per-IP sliding window.
+  const perIp = await store.tryWindow(`gt:ip:${ip}`, ipMax, HOUR_MS, now);
+  base.ipRemaining = Math.max(0, ipMax - perIp.count);
+  if (!perIp.allowed) {
+    // Hand the global slot back — this request is not going to use it.
+    await store.addSpend(`gt:calls:${day}:refund`, 0);
+    return deny(
+      "ip-limit-exceeded",
+      `Rate limit reached (${ipMax} live runs per hour per IP) — falling back to mock reasoning.`,
+      base,
+    );
+  }
 
   return {
     ...base,
     mode: "real",
     reason: "allowed",
-    ipRemaining: ipRemaining - 1,
-    dailyRemaining: dailyRemaining - 1,
-    message: "Live reasoning permitted.",
+    message: `Live reasoning permitted (${base.ipRemaining} left this hour).`,
   };
 }
 
-/** Test-only: wipe the sliding windows. */
-export function __resetRateLimit(): void {
-  store.byIp.clear();
-  store.global = [];
+/** Record what a completed real call actually cost. Call after every one. */
+export async function recordSpend(
+  inputTokens: number,
+  outputTokens: number,
+  now: number = Date.now(),
+): Promise<number> {
+  const usd = usdForUsage(inputTokens, outputTokens);
+  return activeStore().addSpend(`gt:spend:${dayKey(now)}`, usd);
+}
+
+export async function currentSpend(now: number = Date.now()): Promise<number> {
+  return activeStore().getSpend(`gt:spend:${dayKey(now)}`);
+}
+
+/** Test-only: wipe the in-memory store. */
+export async function __resetRateLimit(): Promise<void> {
+  await activeStore().reset();
+  await memoryStore.reset();
 }
 
 /** Best-effort client IP from proxy headers. */

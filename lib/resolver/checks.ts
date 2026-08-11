@@ -265,14 +265,14 @@ export function runDeterministicChecks(bundle: EvidenceBundle): Check[] {
 
   // ── 4. Fee schedule ───────────────────────────────────────────────────────
   for (const p of payments) {
-    const want = expectedFeeCents(p.grossCents);
+    const want = expectedFeeCents(p.grossCents, bundle.feeSchedule);
     if (p.feeCents === want) continue;
     checks.push({
       id: `fee-${p.settlementId}`,
       label: "Fee schedule",
       kind: "deterministic",
       outcome: "conflict",
-      detail: `${p.settlementId} charged ${usd(p.feeCents)} where the published schedule (2.9% + $0.30) gives ${usd(want)}.`,
+      detail: `${p.settlementId} charged ${usd(p.feeCents)} where the published schedule (${(bundle.feeSchedule.percentBps / 100).toFixed(2)}% + ${usd(bundle.feeSchedule.fixedCents)}) gives ${usd(want)}.`,
       citations: [
         { source: "settlement", ref: p.settlementId, detail: `fee ${usd(p.feeCents)} on gross ${usd(p.grossCents)}` },
       ],
@@ -285,7 +285,7 @@ export function runDeterministicChecks(bundle: EvidenceBundle): Check[] {
       label: "Fee schedule",
       kind: "deterministic",
       outcome: "agree",
-      detail: `Processing fee of ${usd(payments.reduce((s, p) => s + p.feeCents, 0))} matches 2.9% + $0.30 on every capture.`,
+      detail: `Processing fee of ${usd(payments.reduce((s, p) => s + p.feeCents, 0))} matches ${(bundle.feeSchedule.percentBps / 100).toFixed(2)}% + ${usd(bundle.feeSchedule.fixedCents)} on every capture.`,
       citations: payments.map((p) => ({
         source: "settlement" as const,
         ref: p.settlementId,

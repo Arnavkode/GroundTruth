@@ -259,24 +259,73 @@ const CANNED: Record<string, (b: EvidenceBundle) => Omit<LlmJudgement, "provenan
   }),
 };
 
-/** Fallback when a transaction has no hand-written entry — derived from the checks. */
+/**
+ * Fallback for any transaction without a hand-written entry — every uploaded
+ * transaction, in practice. Derived strictly from the deterministic checks, and
+ * careful to describe what was actually found: a unit whose checks are all
+ * "missing" has not been cleared, it is unresolved, and the headline must say so.
+ */
 function derive(bundle: EvidenceBundle, checks: Check[]): Omit<LlmJudgement, "provenance"> {
   const conflicts = checks.filter((c) => c.outcome === "conflict");
   const explained = checks.filter((c) => c.outcome === "explained");
-  const verdict = conflicts.length > 0 ? "contradicts" : explained.length > 0 ? "inconclusive" : "corroborates";
-  const lead = conflicts[0] ?? explained[0];
+  const missing = checks.filter((c) => c.outcome === "missing");
+  const agree = checks.filter((c) => c.outcome === "agree");
+
+  const verdict: LlmJudgement["verdict"] =
+    conflicts.length > 0 ? "contradicts" : missing.length > 0 ? "inconclusive" : "corroborates";
+
+  let headline: string;
+  if (conflicts.length > 0) {
+    headline = `${conflicts[0].label}: ${firstClause(conflicts[0].detail)}`;
+  } else if (missing.length > 0 && agree.length === 0) {
+    headline = bundle.bankOnly
+      ? `Bank-only movement — no internal record exists for ${bundle.transactionRef}.`
+      : `Insufficient evidence — ${missing.length} source check(s) had nothing to read.`;
+  } else if (missing.length > 0) {
+    headline = `Partially evidenced — ${agree.length} check(s) agree, ${missing.length} could not be run.`;
+  } else if (explained.length > 0) {
+    headline = `${explained[0].label}: ${firstClause(explained[0].detail)}`;
+  } else {
+    headline = `All ${agree.length} checks agree across the available sources.`;
+  }
+
+  const rationale =
+    "No hand-written analysis exists for this transaction, so this reading is derived from the " +
+    "deterministic checks alone. The narrative evidence has not been interpreted — with a live " +
+    "model configured, that step would add what only a reader of the transcripts can add.";
+
+  const explanation = [
+    conflicts.length > 0
+      ? `${conflicts.length} check(s) conflict: ${conflicts.map((c) => c.label).join(", ")}.`
+      : null,
+    explained.length > 0
+      ? `${explained.length} difference(s) have a named cause: ${explained.map((c) => c.label).join(", ")}.`
+      : null,
+    missing.length > 0
+      ? `${missing.length} check(s) had no evidence to read: ${missing.map((c) => c.label).join(", ")}.`
+      : null,
+    agree.length > 0 ? `${agree.length} check(s) agree.` : null,
+    checks.map((c) => `${c.label}: ${c.detail}`).join(" "),
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return {
     question: "What do the deterministic checks establish about this transaction?",
     verdict,
-    rationale:
-      "No hand-written reasoning exists for this transaction, so this summary is derived directly from the deterministic checks rather than from a reading of the unstructured evidence.",
-    citations: lead?.citations ?? [],
+    rationale,
+    citations: (conflicts[0] ?? explained[0] ?? missing[0] ?? agree[0])?.citations ?? [],
     weight: 0,
-    headline: lead ? lead.detail.split(".")[0] + "." : "No discrepancies found across the available sources.",
-    explanation:
-      checks.map((c) => `${c.label}: ${c.detail}`).join(" ") ||
-      `No checks produced output for ${bundle.transactionRef}.`,
+    headline,
+    explanation: explanation || `No checks produced output for ${bundle.transactionRef}.`,
   };
+}
+
+/** First sentence, without breaking on the decimal point in "$3.00". */
+function firstClause(text: string): string {
+  const m = text.match(/^(.*?[^0-9])\.(?:\s|$)/);
+  const clause = (m ? m[1] : text).trim();
+  return clause.length > 110 ? clause.slice(0, 107) + "…" : clause + ".";
 }
 
 export function mockJudgement(bundle: EvidenceBundle, checks: Check[]): LlmJudgement {

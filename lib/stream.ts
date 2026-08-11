@@ -1,11 +1,12 @@
-import { buildEvidenceBundles, getBundle, usd } from "./fixtures";
+import { buildEvidenceBundles, FIXTURE_DATASET, getBundle, usd } from "./fixtures";
+import { LIMITS } from "./ingest";
 import { runDeterministicChecks } from "./resolver/checks";
 import { realJudgement } from "./resolver/llm";
 import { mockJudgement } from "./resolver/mock-reasoning";
 import { buildRebuttal, rebuttalFactors } from "./resolver/rebuttal";
 import { assembleResolution } from "./resolver/resolve";
-import type { EvidenceBundle, Resolution } from "./resolver/types";
-import { checkRateLimit, clientIp, type Decision } from "./ratelimit";
+import type { EvidenceBundle, EvidenceDataset, Resolution } from "./resolver/types";
+import { checkRateLimit, clientIp, recordSpend, type Decision } from "./ratelimit";
 import { disputes } from "./fixtures";
 
 /** Mock steps are paced like real ones so the demo feels identical either way. */
@@ -19,7 +20,7 @@ const PACE_SINGLE = { source: 70, check: 100, reason: 320, unit: 40 };
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export type StreamEvent =
-  | { type: "meta"; mode: "real" | "mock"; message: string; ipRemaining: number; dailyRemaining: number; total: number }
+  | { type: "meta"; mode: "real" | "mock"; message: string; ipRemaining: number; dailyRemaining: number; total: number; origin: "fixtures" | "upload"; datasetLabel: string }
   | { type: "unit-start"; ref: string; index: number; total: number; label: string }
   | { type: "source"; ref: string; source: string; detail: string; found: boolean }
   | { type: "check"; ref: string; label: string; outcome: string; detail: string; kind: string }
@@ -80,9 +81,17 @@ async function emitSources(
   }
 }
 
+interface RunBudget {
+  ip: string;
+  callsUsed: number;
+  maxCalls: number;
+  /** The decision the UI was told about, refreshed as the run proceeds. */
+  latest: Decision;
+}
+
 async function resolveOne(
   b: EvidenceBundle,
-  decision: Decision,
+  budget: RunBudget,
   send: (e: StreamEvent) => void,
   paced: boolean,
   PACE: typeof PACE_BATCH,
@@ -106,10 +115,22 @@ async function resolveOne(
     question: "Reading the unstructured evidence…",
   });
 
+  // Re-check per step, not per run: the spend cap, the global daily cap and
+  // the per-upload cap can all trip midway through a batch, and when they do
+  // the remaining units must fall back rather than keep spending.
+  const decision = await checkRateLimit(budget.ip, {
+    callsThisRun: budget.callsUsed,
+    maxCallsPerRun: budget.maxCalls,
+  });
+  budget.latest = decision;
+
   let judgement;
   if (decision.mode === "real") {
+    budget.callsUsed += 1;
     try {
-      judgement = await realJudgement(b, checks);
+      const result = await realJudgement(b, checks);
+      judgement = result.judgement;
+      await recordSpend(result.usage.inputTokens, result.usage.outputTokens);
     } catch {
       // Never let a live-API failure break the run.
       judgement = mockJudgement(b, checks);
@@ -134,22 +155,37 @@ export function sseHeaders(): HeadersInit {
 }
 
 /** Reconcile mode: every unit in the fixture set, three buckets. */
-export function reconcileStream(request: Request): ReadableStream<Uint8Array> {
+export function reconcileStream(
+  request: Request,
+  dataset: EvidenceDataset = FIXTURE_DATASET,
+): ReadableStream<Uint8Array> {
   const paced = new URL(request.url).searchParams.get("paced") !== "0";
-  const decision = checkRateLimit(clientIp(request.headers));
-  const bundles = buildEvidenceBundles();
+  const ip = clientIp(request.headers);
+  const bundles = buildEvidenceBundles(dataset);
 
   return new ReadableStream<Uint8Array>({
     async start(controller) {
       const send = (e: StreamEvent) => controller.enqueue(encode(e));
       try {
+        const opening = await checkRateLimit(ip, {
+          callsThisRun: 0,
+          maxCallsPerRun: LIMITS.MAX_REAL_CALLS_PER_UPLOAD,
+        });
+        const budget: RunBudget = {
+          ip,
+          callsUsed: 0,
+          maxCalls: LIMITS.MAX_REAL_CALLS_PER_UPLOAD,
+          latest: opening,
+        };
         send({
           type: "meta",
-          mode: decision.mode,
-          message: decision.message,
-          ipRemaining: decision.ipRemaining,
-          dailyRemaining: decision.dailyRemaining,
+          mode: opening.mode,
+          message: opening.message,
+          ipRemaining: opening.ipRemaining,
+          dailyRemaining: opening.dailyRemaining,
           total: bundles.length,
+          origin: dataset.origin,
+          datasetLabel: dataset.label,
         });
 
         const counts = { matched: 0, explained: 0, flagged: 0 };
@@ -164,7 +200,7 @@ export function reconcileStream(request: Request): ReadableStream<Uint8Array> {
           });
           if (paced) await sleep(PACE_BATCH.unit);
           await emitSources(send, b, paced, PACE_BATCH);
-          const r = await resolveOne(b, decision, send, paced, PACE_BATCH);
+          const r = await resolveOne(b, budget, send, paced, PACE_BATCH);
           if (r.status === "matched") counts.matched += 1;
           else if (r.status === "explained-difference") counts.explained += 1;
           else counts.flagged += 1;
@@ -182,10 +218,14 @@ export function reconcileStream(request: Request): ReadableStream<Uint8Array> {
 }
 
 /** Investigate mode: one disputed transaction, then the rebuttal agent. */
-export function investigateStream(request: Request, disputeId: string): ReadableStream<Uint8Array> {
+export function investigateStream(
+  request: Request,
+  disputeId: string,
+  dataset: EvidenceDataset = FIXTURE_DATASET,
+): ReadableStream<Uint8Array> {
   const paced = new URL(request.url).searchParams.get("paced") !== "0";
-  const decision = checkRateLimit(clientIp(request.headers));
-  const dispute = disputes.find((d) => d.disputeId === disputeId);
+  const ip = clientIp(request.headers);
+  const dispute = dataset.disputes.find((d) => d.disputeId === disputeId);
 
   return new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -196,20 +236,32 @@ export function investigateStream(request: Request, disputeId: string): Readable
           send({ type: "done" });
           return;
         }
-        const b = getBundle(dispute.transactionRef);
+        const b = getBundle(dispute.transactionRef, dataset);
         if (!b) {
           send({ type: "error", message: `No evidence bundle for ${dispute.transactionRef}` });
           send({ type: "done" });
           return;
         }
 
+        const opening = await checkRateLimit(ip, {
+          callsThisRun: 0,
+          maxCallsPerRun: LIMITS.MAX_REAL_CALLS_PER_UPLOAD,
+        });
+        const budget: RunBudget = {
+          ip,
+          callsUsed: 0,
+          maxCalls: LIMITS.MAX_REAL_CALLS_PER_UPLOAD,
+          latest: opening,
+        };
         send({
           type: "meta",
-          mode: decision.mode,
-          message: decision.message,
-          ipRemaining: decision.ipRemaining,
-          dailyRemaining: decision.dailyRemaining,
+          mode: opening.mode,
+          message: opening.message,
+          ipRemaining: opening.ipRemaining,
+          dailyRemaining: opening.dailyRemaining,
           total: 1,
+          origin: dataset.origin,
+          datasetLabel: dataset.label,
         });
         send({
           type: "unit-start",
@@ -220,7 +272,7 @@ export function investigateStream(request: Request, disputeId: string): Readable
         });
 
         await emitSources(send, b, paced, PACE_SINGLE);
-        const resolution = await resolveOne(b, decision, send, paced, PACE_SINGLE);
+        const resolution = await resolveOne(b, budget, send, paced, PACE_SINGLE);
 
         if (paced) await sleep(PACE_SINGLE.reason);
         send({

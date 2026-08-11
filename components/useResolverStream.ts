@@ -17,6 +17,8 @@ export interface StreamState {
   phase: "idle" | "running" | "done" | "error";
   mode: "real" | "mock" | null;
   modeMessage: string;
+  origin: "fixtures" | "upload" | null;
+  datasetLabel: string;
   live: LiveUnit | null;
   resolutions: Resolution[];
   summary: { matched: number; explained: number; flagged: number; total: number } | null;
@@ -31,6 +33,8 @@ const EMPTY: StreamState = {
   phase: "idle",
   mode: null,
   modeMessage: "",
+  origin: null,
+  datasetLabel: "",
   live: null,
   resolutions: [],
   summary: null,
@@ -40,36 +44,45 @@ const EMPTY: StreamState = {
 
 export function useResolverStream() {
   const [state, setState] = useState<StreamState>(EMPTY);
-  const sourceRef = useRef<EventSource | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   const stop = useCallback(() => {
-    sourceRef.current?.close();
-    sourceRef.current = null;
+    abortRef.current?.abort();
+    abortRef.current = null;
   }, []);
 
   useEffect(() => stop, [stop]);
 
+  /**
+   * Consume an SSE stream with fetch rather than EventSource — EventSource is
+   * GET-only, and an uploaded dataset has to be POSTed.
+   */
   const start = useCallback(
-    (url: string) => {
+    (url: string, body?: unknown) => {
       stop();
       setState({ ...EMPTY, phase: "running" });
-      const es = new EventSource(url);
-      sourceRef.current = es;
+      const controller = new AbortController();
+      abortRef.current = controller;
 
-      es.onmessage = (msg) => {
-        const e = JSON.parse(msg.data);
+      const apply = (e: Record<string, unknown>) =>
         setState((prev) => {
           switch (e.type) {
             case "meta":
-              return { ...prev, mode: e.mode, modeMessage: e.message };
+              return {
+                ...prev,
+                mode: e.mode as "real" | "mock",
+                modeMessage: String(e.message ?? ""),
+                origin: (e.origin as "fixtures" | "upload") ?? null,
+                datasetLabel: String(e.datasetLabel ?? ""),
+              };
             case "unit-start":
               return {
                 ...prev,
                 live: {
-                  ref: e.ref,
-                  label: e.label,
-                  index: e.index,
-                  total: e.total,
+                  ref: String(e.ref),
+                  label: String(e.label),
+                  index: Number(e.index),
+                  total: Number(e.total),
                   sources: [],
                   checks: [],
                   reasoning: null,
@@ -83,7 +96,7 @@ export function useResolverStream() {
                       ...prev.live,
                       sources: [
                         ...prev.live.sources,
-                        { source: e.source, detail: e.detail, found: e.found },
+                        { source: String(e.source), detail: String(e.detail), found: Boolean(e.found) },
                       ],
                     },
                   }
@@ -96,46 +109,95 @@ export function useResolverStream() {
                       ...prev.live,
                       checks: [
                         ...prev.live.checks,
-                        { label: e.label, outcome: e.outcome, detail: e.detail, kind: e.kind },
+                        {
+                          label: String(e.label),
+                          outcome: String(e.outcome),
+                          detail: String(e.detail),
+                          kind: String(e.kind),
+                        },
                       ],
                     },
                   }
                 : prev;
             case "reasoning":
-              return prev.live ? { ...prev, live: { ...prev.live, reasoning: e.question } } : prev;
+              return prev.live
+                ? { ...prev, live: { ...prev.live, reasoning: String(e.question) } }
+                : prev;
             case "resolution":
-              return { ...prev, resolutions: [...prev.resolutions, e.resolution] };
+              return { ...prev, resolutions: [...prev.resolutions, e.resolution as Resolution] };
             case "summary":
               return {
                 ...prev,
                 summary: {
-                  matched: e.matched,
-                  explained: e.explained,
-                  flagged: e.flagged,
-                  total: e.total,
+                  matched: Number(e.matched),
+                  explained: Number(e.explained),
+                  flagged: Number(e.flagged),
+                  total: Number(e.total),
                 },
               };
             case "rebuttal":
-              return { ...prev, rebuttal: { rebuttal: e.rebuttal, factors: e.factors } };
+              return {
+                ...prev,
+                rebuttal: {
+                  rebuttal: e.rebuttal as Rebuttal,
+                  factors: e.factors as { label: string; weight: number; citation: Citation }[],
+                },
+              };
             case "error":
-              return { ...prev, phase: "error", error: e.message };
+              return { ...prev, phase: "error", error: String(e.message) };
             case "done":
-              es.close();
               return { ...prev, phase: "done", live: null };
             default:
               return prev;
           }
         });
-      };
 
-      es.onerror = () => {
-        es.close();
-        setState((prev) =>
-          prev.phase === "done"
-            ? prev
-            : { ...prev, phase: "error", error: "Connection to the resolver stream was lost." },
-        );
-      };
+      (async () => {
+        try {
+          const res = await fetch(url, {
+            method: body === undefined ? "GET" : "POST",
+            headers: body === undefined ? undefined : { "content-type": "application/json" },
+            body: body === undefined ? undefined : JSON.stringify(body),
+            signal: controller.signal,
+          });
+
+          if (!res.ok || !res.body) {
+            let message = `The resolver returned ${res.status}.`;
+            try {
+              const j = await res.json();
+              if (j?.problems?.length) message = `Dataset rejected: ${j.problems.join("; ")}`;
+              else if (j?.error) message = String(j.error);
+            } catch {
+              /* keep the status-code message */
+            }
+            setState((prev) => ({ ...prev, phase: "error", error: message }));
+            return;
+          }
+
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = "";
+          for (;;) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const chunks = buffer.split("\n\n");
+            buffer = chunks.pop() ?? "";
+            for (const chunk of chunks) {
+              const line = chunk.split("\n").find((l) => l.startsWith("data: "));
+              if (line) apply(JSON.parse(line.slice(6)));
+            }
+          }
+          setState((prev) => (prev.phase === "running" ? { ...prev, phase: "done", live: null } : prev));
+        } catch (err) {
+          if ((err as Error).name === "AbortError") return;
+          setState((prev) => ({
+            ...prev,
+            phase: "error",
+            error: "Connection to the resolver stream was lost.",
+          }));
+        }
+      })();
     },
     [stop],
   );

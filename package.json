@@ -8,12 +8,14 @@
     "start": "next start",
     "lint": "next lint",
     "resolver": "tsx scripts/run-resolver.ts",
-    "test:ratelimit": "tsx scripts/test-ratelimit.ts",
     "test:e2e": "tsx scripts/test-e2e.ts",
-    "verify": "npm run build && npm run resolver && npm run test:ratelimit"
+    "verify": "npm run build && npm run resolver && npm run test:guardrails && npm run test:ingest",
+    "test:guardrails": "tsx scripts/test-guardrails.ts",
+    "test:ingest": "tsx scripts/test-ingest.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.68.0",
+    "@upstash/redis": "^1.38.2",
     "geist": "^1.7.2",
     "next": "^14.2.35",
     "react": "^18.3.1",

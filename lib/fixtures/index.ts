@@ -10,6 +10,8 @@ import type {
   ChatRecord,
   DisputeRecord,
   EvidenceBundle,
+  EvidenceDataset,
+  FeeSchedule,
   OrderRecord,
   SettlementRecord,
   ShipmentRecord,
@@ -26,7 +28,7 @@ export const bank = bankStatement as {
 export const settlement = settlementReport as unknown as {
   processor: string;
   exportedAt: string;
-  feeSchedule: { percentBps: number; fixedCents: number; note: string };
+  feeSchedule: FeeSchedule;
   records: SettlementRecord[];
 };
 
@@ -38,9 +40,22 @@ export const disputes = (disputesFile as unknown as { disputes: DisputeRecord[] 
 export const FEE_BPS = settlement.feeSchedule.percentBps;
 export const FEE_FIXED_CENTS = settlement.feeSchedule.fixedCents;
 
+/** The bundled fixtures, expressed as an ordinary dataset like any upload. */
+export const FIXTURE_DATASET: EvidenceDataset = {
+  origin: "fixtures",
+  label: "Bundled fixtures — Meridian Commercial × Halyard Payments, 16 Feb – 12 Mar 2026",
+  feeSchedule: settlement.feeSchedule,
+  bankLines: bank.lines,
+  settlements: settlement.records,
+  orders,
+  shipments,
+  chats,
+  disputes,
+};
+
 /** The processor's published fee for a captured payment. */
-export function expectedFeeCents(grossCents: number): number {
-  return Math.round((grossCents * FEE_BPS) / 10_000) + FEE_FIXED_CENTS;
+export function expectedFeeCents(grossCents: number, schedule: FeeSchedule): number {
+  return Math.round((grossCents * schedule.percentBps) / 10_000) + schedule.fixedCents;
 }
 
 const DAY_MS = 86_400_000;
@@ -50,17 +65,22 @@ function daysBetween(a: string, b: string): number {
 }
 
 /**
- * Assemble every reconciliation unit from the fixture sources.
+ * Assemble every reconciliation unit from a dataset.
  *
  * A unit is normally keyed by transactionRef. Bank lines attach by memo
  * reference first; anything left over is matched on amount within a posting
  * window. A bank line that two units can both claim is recorded as *contested*
  * on both rather than silently assigned to one — that contest is what makes
  * TXN-1007A/B honestly unresolvable.
+ *
+ * This takes a dataset rather than reading the fixtures directly, so an
+ * upload runs through byte-identical logic.
  */
-export function buildEvidenceBundles(): EvidenceBundle[] {
+export function buildEvidenceBundles(
+  dataset: EvidenceDataset = FIXTURE_DATASET,
+): EvidenceBundle[] {
   const byRef = new Map<string, SettlementRecord[]>();
-  for (const rec of settlement.records) {
+  for (const rec of dataset.settlements) {
     const list = byRef.get(rec.transactionRef) ?? [];
     list.push(rec);
     byRef.set(rec.transactionRef, list);
@@ -68,14 +88,16 @@ export function buildEvidenceBundles(): EvidenceBundle[] {
 
   const claimedBankIds = new Set<string>();
   const bundles: EvidenceBundle[] = [];
+  const common = { feeSchedule: dataset.feeSchedule, origin: dataset.origin };
 
   // Pass 1 — attach bank lines that carry an explicit reference.
   for (const [ref, settlements] of byRef) {
-    const matched = bank.lines.filter((l) => l.memoRef === ref);
+    const matched = dataset.bankLines.filter((l) => l.memoRef === ref);
     matched.forEach((l) => claimedBankIds.add(l.id));
 
     const orderId = settlements[0].orderId;
     bundles.push({
+      ...common,
       transactionRef: ref,
       settlements: settlements
         .slice()
@@ -83,10 +105,10 @@ export function buildEvidenceBundles(): EvidenceBundle[] {
       bankLines: matched.slice().sort((a, b) => a.postedAt.localeCompare(b.postedAt)),
       contestedBankLines: [],
       rivalRefs: [],
-      order: orders.find((o) => o.orderId === orderId),
-      shipment: shipments.find((s) => s.orderId === orderId),
-      chat: chats.find((c) => c.orderId === orderId),
-      dispute: disputes.find((d) => d.transactionRef === ref),
+      order: dataset.orders.find((o) => o.orderId === orderId),
+      shipment: dataset.shipments.find((s) => s.orderId === orderId),
+      chat: dataset.chats.find((c) => c.orderId === orderId),
+      dispute: dataset.disputes.find((d) => d.transactionRef === ref),
       bankOnly: false,
     });
   }
@@ -99,7 +121,7 @@ export function buildEvidenceBundles(): EvidenceBundle[] {
     if (expected === null) continue;
     const lastActivity = b.settlements[b.settlements.length - 1].occurredAt;
 
-    for (const line of bank.lines) {
+    for (const line of dataset.bankLines) {
       if (line.memoRef !== null || claimedBankIds.has(line.id)) continue;
       const signed = line.direction === "credit" ? line.amountCents : -line.amountCents;
       if (signed !== expected) continue;
@@ -110,7 +132,7 @@ export function buildEvidenceBundles(): EvidenceBundle[] {
   }
 
   for (const [lineId, refs] of claimants) {
-    const line = bank.lines.find((l) => l.id === lineId)!;
+    const line = dataset.bankLines.find((l) => l.id === lineId)!;
     if (refs.length === 1) {
       const b = bundles.find((x) => x.transactionRef === refs[0])!;
       b.bankLines.push(line);
@@ -127,9 +149,10 @@ export function buildEvidenceBundles(): EvidenceBundle[] {
   }
 
   // Pass 3 — bank lines with no internal counterpart at all.
-  for (const line of bank.lines) {
+  for (const line of dataset.bankLines) {
     if (claimedBankIds.has(line.id)) continue;
     bundles.push({
+      ...common,
       transactionRef: line.id,
       settlements: [],
       bankLines: [line],
@@ -157,8 +180,11 @@ export function observedNetCents(lines: BankLine[]): number | null {
   );
 }
 
-export function getBundle(transactionRef: string): EvidenceBundle | undefined {
-  return buildEvidenceBundles().find((b) => b.transactionRef === transactionRef);
+export function getBundle(
+  transactionRef: string,
+  dataset: EvidenceDataset = FIXTURE_DATASET,
+): EvidenceBundle | undefined {
+  return buildEvidenceBundles(dataset).find((b) => b.transactionRef === transactionRef);
 }
 
 export function usd(cents: number): string {

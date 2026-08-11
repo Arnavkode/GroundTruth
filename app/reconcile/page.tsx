@@ -13,6 +13,9 @@ import {
 } from "@/components/ui";
 import { useResolverStream } from "@/components/useResolverStream";
 import { ArcCluster, ScatterField } from "@/components/decor";
+import { UploadPanel } from "@/components/upload";
+import type { IngestReport } from "@/lib/ingest";
+import type { EvidenceDataset } from "@/lib/resolver/types";
 import type { ResolvedStatus, Resolution } from "@/lib/resolver/types";
 
 const BUCKETS: { status: ResolvedStatus; blurb: string }[] = [
@@ -32,6 +35,7 @@ function usd(cents: number) {
 export default function ReconcilePage() {
   const { state, start, reset } = useResolverStream();
   const [open, setOpen] = useState<string | null>(null);
+  const [upload, setUpload] = useState<{ dataset: EvidenceDataset; report: IngestReport } | null>(null);
 
   const grouped = useMemo(() => {
     const g: Record<ResolvedStatus, Resolution[]> = {
@@ -83,7 +87,9 @@ export default function ReconcilePage() {
           className="btn-primary"
           onClick={() => {
             setOpen(null);
-            start("/api/reconcile");
+            // Same endpoint, same resolver — only the evidence source differs.
+            if (upload) start("/api/reconcile", { dataset: upload.dataset });
+            else start("/api/reconcile");
           }}
           disabled={running}
         >
@@ -95,6 +101,16 @@ export default function ReconcilePage() {
           </button>
         )}
         <ModeBadge mode={state.mode} message={state.modeMessage} />
+        <span
+          className={`chip ${
+            upload ? "border-signal/40 bg-signal/[0.07] text-signal" : "border-rule bg-surface text-muted"
+          }`}
+          title={upload ? upload.report.label : "Bundled fixture data"}
+        >
+          {upload
+            ? `uploaded — ${upload.report.totalRows} rows`
+            : "bundled fixtures — 16 units"}
+        </span>
         {state.mode === "mock" && (
           <span className="text-xs text-muted">{state.modeMessage}</span>
         )}
@@ -241,13 +257,29 @@ export default function ReconcilePage() {
         );
       })}
 
-      {state.phase === "idle" && <ReconcileIdle />}
+      {state.phase === "idle" && (
+        <>
+          <div className="mt-8">
+            <UploadPanel
+              loaded={upload}
+              disabled={running}
+              onLoaded={(dataset, report) => setUpload({ dataset, report })}
+              onCleared={() => setUpload(null)}
+            />
+          </div>
+          <ReconcileIdle uploaded={upload} />
+        </>
+      )}
     </div>
   );
 }
 
 /** Pre-run state: shows what is about to happen rather than an empty page. */
-function ReconcileIdle() {
+function ReconcileIdle({
+  uploaded,
+}: {
+  uploaded: { dataset: EvidenceDataset; report: IngestReport } | null;
+}) {
   const sources = [
     ["settlement", "Halyard ledger export"],
     ["bank", "Meridian statement lines"],
@@ -262,7 +294,9 @@ function ReconcileIdle() {
         <div className="decor inset-0 grid-paper opacity-50" />
         <div className="above">
           <p className="text-micro uppercase tracking-widest text-muted">
-            Queued — 16 units awaiting resolution
+            {uploaded
+              ? `Queued — ${uploaded.report.totalRows} uploaded rows awaiting resolution`
+              : "Queued — 16 units awaiting resolution"}
           </p>
           <ul className="mt-4 space-y-2.5">
             {Array.from({ length: 8 }).map((_, i) => (
@@ -278,9 +312,19 @@ function ReconcileIdle() {
             ))}
           </ul>
           <p className="mt-5 border-t border-rule pt-4 text-sm leading-relaxed text-muted">
-            Nothing has run yet. The reconciliation works entirely against bundled fixture data and
-            needs no credentials — press <span className="text-ink">Run reconciliation</span> and the
-            resolver will stream its work source by source.
+            {uploaded ? (
+              <>
+                <span className="text-ink">{uploaded.report.label}</span> is loaded and validated.
+                Press <span className="text-ink">Run reconciliation</span> — it goes through exactly
+                the same resolver as the bundled fixtures, with no special-casing.
+              </>
+            ) : (
+              <>
+                Nothing has run yet. The reconciliation works entirely against bundled fixture data
+                and needs no credentials — press <span className="text-ink">Run reconciliation</span>{" "}
+                and the resolver will stream its work source by source.
+              </>
+            )}
           </p>
         </div>
       </div>

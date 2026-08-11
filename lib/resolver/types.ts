@@ -128,8 +128,34 @@ export interface DisputeRecord {
  * Everything known about one transaction, assembled before any reasoning runs.
  * Missing pieces stay undefined on purpose — absence is evidence.
  */
+export interface FeeSchedule {
+  percentBps: number;
+  fixedCents: number;
+  note?: string;
+}
+
+/**
+ * A complete evidence set. Bundled fixtures and a validated upload produce the
+ * identical shape, so the resolver cannot tell them apart — and must not.
+ */
+export interface EvidenceDataset {
+  origin: "fixtures" | "upload";
+  label: string;
+  feeSchedule: FeeSchedule;
+  bankLines: BankLine[];
+  settlements: SettlementRecord[];
+  orders: OrderRecord[];
+  shipments: ShipmentRecord[];
+  chats: ChatRecord[];
+  disputes: DisputeRecord[];
+}
+
 export interface EvidenceBundle {
   transactionRef: string;
+  /** Carried on the bundle so checks never reach for module-level fixture state. */
+  feeSchedule: FeeSchedule;
+  /** Where this evidence came from. Surfaced in the UI; never changes the logic. */
+  origin: "fixtures" | "upload";
   settlements: SettlementRecord[];
   bankLines: BankLine[];
   /** Bank lines that could belong here but are also claimed by another unit. */
