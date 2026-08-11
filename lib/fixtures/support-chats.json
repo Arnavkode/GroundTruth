@@ -1,0 +1,79 @@
+{
+  "note": "Support transcripts. These are the fragments the deterministic layer cannot read — corroboration or contradiction here is the LLM reasoning step's job.",
+  "chats": [
+    {
+      "chatId": "CHT-1009",
+      "orderId": "ORD-1009",
+      "openedAt": "2026-02-23T16:30:00Z",
+      "transcript": [
+        { "ts": "2026-02-23T16:30:00Z", "from": "customer", "text": "Hi — got the rug yesterday but the colour is not what I expected. The listing looked much more red." },
+        { "ts": "2026-02-23T16:33:00Z", "from": "agent", "text": "Sorry to hear that. Rust does photograph warmer on some screens. I can start a return — it's within the 30-day window." },
+        { "ts": "2026-02-23T16:41:00Z", "from": "customer", "text": "Let me live with it for a week and see. I'll come back to you." },
+        { "ts": "2026-03-01T09:12:00Z", "from": "agent", "text": "Checking in — would you still like a return label?" }
+      ],
+      "outcome": "no_reply"
+    },
+    {
+      "chatId": "CHT-1010",
+      "orderId": "ORD-1010",
+      "openedAt": "2026-03-02T10:05:00Z",
+      "transcript": [
+        { "ts": "2026-03-02T10:05:00Z", "from": "customer", "text": "Tracking says delivered on the 27th but nothing arrived. I've checked with neighbours and the building office." },
+        { "ts": "2026-03-02T10:19:00Z", "from": "agent", "text": "Thanks — I can see the carrier marked it left at the door. Let me open a trace with UPS. Give it 72 hours." },
+        { "ts": "2026-03-06T08:40:00Z", "from": "customer", "text": "It's been four days, still nothing, and no one has contacted me. This is the second time I'm writing." },
+        { "ts": "2026-03-06T09:02:00Z", "from": "agent", "text": "Apologies for the delay. The trace came back inconclusive. I'm going to send a replacement lamp out today at no charge." },
+        { "ts": "2026-03-10T18:55:00Z", "from": "customer", "text": "No replacement, no tracking, no reply. I'm disputing the charge with my bank." }
+      ],
+      "outcome": "escalated_to_dispute",
+      "note": "No reshipment record exists in the order system for the replacement promised on 2026-03-06."
+    },
+    {
+      "chatId": "CHT-1011",
+      "orderId": "ORD-1011",
+      "openedAt": "2026-03-07T20:14:00Z",
+      "transcript": [
+        { "ts": "2026-03-07T20:14:00Z", "from": "customer", "text": "There's a $24 charge from you on my card and I have never bought anything from this company. Please remove it." },
+        { "ts": "2026-03-07T20:22:00Z", "from": "agent", "text": "I can see a Restock Club subscription under hpinsky@example.com, started 14 Aug 2025. It renews monthly at $24." },
+        { "ts": "2026-03-07T20:26:00Z", "from": "customer", "text": "That is my email but I don't remember any subscription. I certainly haven't been getting emails about it." },
+        { "ts": "2026-03-07T20:31:00Z", "from": "agent", "text": "Our renewal notices have been bouncing back from that address since January, so it's possible you stopped seeing them. I can cancel from today." },
+        { "ts": "2026-03-07T20:34:00Z", "from": "customer", "text": "Cancel it, and I want the last few months back. I'm calling my bank about this too." }
+      ],
+      "outcome": "escalated_to_dispute"
+    },
+    {
+      "chatId": "CHT-1006",
+      "orderId": "ORD-1006",
+      "openedAt": "2026-03-04T14:31:00Z",
+      "transcript": [
+        { "ts": "2026-03-04T14:31:00Z", "from": "customer", "text": "I think I've been charged twice for the kettle. The page hung when I clicked pay so I clicked again." },
+        { "ts": "2026-03-04T14:38:00Z", "from": "agent", "text": "I only see one order on my side (ORD-1006). Your bank may be showing a temporary authorisation that will drop off." },
+        { "ts": "2026-03-09T11:20:00Z", "from": "customer", "text": "It has not dropped off. There are two completed charges of $75 on my statement, five days later." }
+      ],
+      "outcome": "escalated_to_dispute",
+      "note": "Agent's reassurance was incorrect: two settled captures exist under the single order."
+    },
+    {
+      "chatId": "CHT-1013",
+      "orderId": "ORD-1013",
+      "openedAt": "2026-03-02T14:10:00Z",
+      "transcript": [
+        { "ts": "2026-03-02T14:10:00Z", "from": "agent", "text": "Quick note on your order — the walnut serving tray (SKU-88, $20) is backordered until May." },
+        { "ts": "2026-03-02T14:12:00Z", "from": "customer", "text": "Ah. Can you just send the knife and the board then? I don't want to wait until May." },
+        { "ts": "2026-03-02T14:15:00Z", "from": "agent", "text": "Done — I've removed the tray from the order, so you'll only be charged $180 for the other two items. Nothing to do on your end." },
+        { "ts": "2026-03-02T14:16:00Z", "from": "customer", "text": "Perfect, thanks." }
+      ],
+      "outcome": "resolved"
+    },
+    {
+      "chatId": "CHT-1005",
+      "orderId": "ORD-1005",
+      "openedAt": "2026-03-09T19:02:00Z",
+      "transcript": [
+        { "ts": "2026-03-09T19:02:00Z", "from": "customer", "text": "The dinner set is lovely but the serving platter arrived in two pieces." },
+        { "ts": "2026-03-09T19:11:00Z", "from": "agent", "text": "Sorry about that. The platter was $40 — I'll refund just that line rather than have you ship it back. It should show in 3-5 business days." },
+        { "ts": "2026-03-09T19:13:00Z", "from": "customer", "text": "That works, thank you." }
+      ],
+      "outcome": "resolved"
+    }
+  ]
+}

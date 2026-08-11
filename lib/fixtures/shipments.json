@@ -1,0 +1,87 @@
+{
+  "note": "Carrier tracking records. Not every order has one; a missing shipment is itself a signal.",
+  "shipments": [
+    {
+      "orderId": "ORD-1009",
+      "carrier": "FedEx",
+      "tracking": "7712 8841 0093",
+      "shippedAt": "2026-02-19T14:02:00Z",
+      "deliveredAt": "2026-02-22T15:41:00Z",
+      "status": "delivered",
+      "signature": "M. ODUYA",
+      "deliveryPostal": "60201",
+      "deliveryMatchesOrderAddress": true
+    },
+    {
+      "orderId": "ORD-1010",
+      "carrier": "UPS",
+      "tracking": "1Z884Y2R0398117402",
+      "shippedAt": "2026-02-25T16:30:00Z",
+      "deliveredAt": "2026-02-27T11:08:00Z",
+      "status": "delivered",
+      "signature": null,
+      "deliveryPostal": "78745",
+      "deliveryMatchesOrderAddress": false,
+      "note": "Carrier scan records 'left at front door'. Delivery ZIP 78745 does not match order ZIP 78702 (roughly 8 miles apart)."
+    },
+    {
+      "orderId": "ORD-1001",
+      "carrier": "USPS",
+      "tracking": "9400 1112 0200 8891 4477",
+      "shippedAt": "2026-03-03T17:20:00Z",
+      "deliveredAt": "2026-03-06T13:15:00Z",
+      "status": "delivered",
+      "signature": null,
+      "deliveryPostal": "02906",
+      "deliveryMatchesOrderAddress": true
+    },
+    {
+      "orderId": "ORD-1005",
+      "carrier": "UPS",
+      "tracking": "1Z884Y2R0398220016",
+      "shippedAt": "2026-03-05T15:00:00Z",
+      "deliveredAt": "2026-03-08T12:44:00Z",
+      "status": "delivered",
+      "signature": "G. ODUM",
+      "deliveryPostal": "11233",
+      "deliveryMatchesOrderAddress": true,
+      "note": "Serving platter arrived cracked; customer requested partial refund for that line item only."
+    },
+    {
+      "orderId": "ORD-1006",
+      "carrier": "USPS",
+      "tracking": "9400 1112 0200 8891 6620",
+      "shippedAt": "2026-03-05T16:10:00Z",
+      "deliveredAt": "2026-03-09T10:02:00Z",
+      "status": "delivered",
+      "signature": null,
+      "deliveryPostal": "04103",
+      "deliveryMatchesOrderAddress": true,
+      "note": "One kettle shipped against a single order record, despite two captures."
+    },
+    {
+      "orderId": "ORD-1013",
+      "carrier": "FedEx",
+      "tracking": "7712 8841 5510",
+      "shippedAt": "2026-03-11T13:40:00Z",
+      "deliveredAt": null,
+      "status": "in_transit",
+      "signature": null,
+      "deliveryPostal": null,
+      "deliveryMatchesOrderAddress": null,
+      "note": "Two of three ordered line items shipped. SKU-88 not included."
+    },
+    {
+      "orderId": "ORD-1015",
+      "carrier": "USPS",
+      "tracking": "9400 1112 0200 8890 1180",
+      "shippedAt": "2026-02-12T15:00:00Z",
+      "deliveredAt": "2026-02-15T14:20:00Z",
+      "status": "returned_to_sender",
+      "signature": null,
+      "deliveryPostal": "05401",
+      "deliveryMatchesOrderAddress": true,
+      "note": "Customer-initiated return received at warehouse 2026-03-02."
+    }
+  ]
+}

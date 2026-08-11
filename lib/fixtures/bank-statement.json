@@ -1,0 +1,137 @@
+{
+  "account": "Northwind Supply Co — Operating ****4417",
+  "bank": "Meridian Commercial Bank",
+  "statementPeriod": { "from": "2026-02-16", "to": "2026-03-12" },
+  "currency": "USD",
+  "note": "Synthetic data. Bank lines are the acquirer payout view: descriptors are inconsistent, some carry a transaction reference and some only a batch label.",
+  "lines": [
+    {
+      "id": "BNK-014",
+      "postedAt": "2026-02-20T00:00:00Z",
+      "descriptor": "NORTHWIND SUPPLY STLMT TXN-1009",
+      "amountCents": 33858,
+      "direction": "credit",
+      "memoRef": "TXN-1009"
+    },
+    {
+      "id": "BNK-015",
+      "postedAt": "2026-02-26T00:00:00Z",
+      "descriptor": "NORTHWIND SUPPLY STLMT TXN-1010",
+      "amountCents": 12496,
+      "direction": "credit",
+      "memoRef": "TXN-1010"
+    },
+    {
+      "id": "BNK-001",
+      "postedAt": "2026-03-02T00:00:00Z",
+      "descriptor": "NORTHWIND SUPPLY STLMT TXN-1014",
+      "amountCents": 4048,
+      "direction": "credit",
+      "memoRef": "TXN-1014"
+    },
+    {
+      "id": "BNK-002",
+      "postedAt": "2026-03-03T00:00:00Z",
+      "descriptor": "NORTHWIND SUPPLY STLMT TXN-1001",
+      "amountCents": 12059,
+      "direction": "credit",
+      "memoRef": "TXN-1001"
+    },
+    {
+      "id": "BNK-016",
+      "postedAt": "2026-03-03T00:00:00Z",
+      "descriptor": "NORTHWIND SUPPLY STLMT TXN-1011",
+      "amountCents": 2300,
+      "direction": "credit",
+      "memoRef": "TXN-1011"
+    },
+    {
+      "id": "BNK-003",
+      "postedAt": "2026-03-04T00:00:00Z",
+      "descriptor": "NORTHWIND SUPPLY STLMT BATCH 0304",
+      "amountCents": 8612,
+      "direction": "credit",
+      "memoRef": null
+    },
+    {
+      "id": "BNK-004",
+      "postedAt": "2026-03-04T14:22:09Z",
+      "descriptor": "NORTHWIND SUPPLY STLMT TXN-1006",
+      "amountCents": 7252,
+      "direction": "credit",
+      "memoRef": "TXN-1006"
+    },
+    {
+      "id": "BNK-005",
+      "postedAt": "2026-03-04T14:22:56Z",
+      "descriptor": "NORTHWIND SUPPLY STLMT TXN-1006",
+      "amountCents": 7252,
+      "direction": "credit",
+      "memoRef": "TXN-1006"
+    },
+    {
+      "id": "BNK-006",
+      "postedAt": "2026-03-05T00:00:00Z",
+      "descriptor": "NORTHWIND SUPPLY STLMT TXN-1005",
+      "amountCents": 17448,
+      "direction": "credit",
+      "memoRef": "TXN-1005"
+    },
+    {
+      "id": "BNK-007",
+      "postedAt": "2026-03-06T00:00:00Z",
+      "descriptor": "NORTHWIND SUPPLY REFUND TXN-1015",
+      "amountCents": 5000,
+      "direction": "debit",
+      "memoRef": "TXN-1015"
+    },
+    {
+      "id": "BNK-008",
+      "postedAt": "2026-03-09T09:12:00Z",
+      "descriptor": "NORTHWIND SUPPLY STLMT TXN-1003",
+      "amountCents": 5893,
+      "direction": "credit",
+      "memoRef": "TXN-1003"
+    },
+    {
+      "id": "BNK-009",
+      "postedAt": "2026-03-09T00:00:00Z",
+      "descriptor": "NORTHWIND SUPPLY ADJ Q1-TRUEUP",
+      "amountCents": 3120,
+      "direction": "debit",
+      "memoRef": null
+    },
+    {
+      "id": "BNK-010",
+      "postedAt": "2026-03-10T00:00:00Z",
+      "descriptor": "NORTHWIND SUPPLY STLMT TXN-1004 FX",
+      "amountCents": 26182,
+      "direction": "credit",
+      "memoRef": "TXN-1004"
+    },
+    {
+      "id": "BNK-011",
+      "postedAt": "2026-03-11T00:00:00Z",
+      "descriptor": "NORTHWIND SUPPLY STLMT BATCH 0311",
+      "amountCents": 15016,
+      "direction": "credit",
+      "memoRef": null
+    },
+    {
+      "id": "BNK-012",
+      "postedAt": "2026-03-11T00:00:00Z",
+      "descriptor": "NORTHWIND SUPPLY STLMT TXN-1012",
+      "amountCents": 20092,
+      "direction": "credit",
+      "memoRef": "TXN-1012"
+    },
+    {
+      "id": "BNK-013",
+      "postedAt": "2026-03-12T00:00:00Z",
+      "descriptor": "NORTHWIND SUPPLY STLMT TXN-1013",
+      "amountCents": 17448,
+      "direction": "credit",
+      "memoRef": "TXN-1013"
+    }
+  ]
+}

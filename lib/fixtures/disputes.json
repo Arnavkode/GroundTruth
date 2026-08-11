@@ -1,0 +1,61 @@
+{
+  "note": "Chargebacks filed against transactions in this period. Each is a one-click Investigate demo entry.",
+  "disputes": [
+    {
+      "disputeId": "DSP-1009",
+      "transactionRef": "TXN-1009",
+      "orderId": "ORD-1009",
+      "reasonCode": "13.1",
+      "reasonText": "Merchandise / Services Not Received",
+      "network": "Visa",
+      "amountCents": 34900,
+      "filedAt": "2026-03-05T00:00:00Z",
+      "respondBy": "2026-03-25T00:00:00Z",
+      "cardholderStatement": "I never received this rug. I have been charged $349 for something that never arrived at my home.",
+      "label": "Not received — delivered and signed for",
+      "blurb": "Cardholder claims non-delivery on an order that was signed for at the billing address."
+    },
+    {
+      "disputeId": "DSP-1010",
+      "transactionRef": "TXN-1010",
+      "orderId": "ORD-1010",
+      "reasonCode": "13.1",
+      "reasonText": "Merchandise / Services Not Received",
+      "network": "Visa",
+      "amountCents": 12900,
+      "filedAt": "2026-03-11T00:00:00Z",
+      "respondBy": "2026-03-31T00:00:00Z",
+      "cardholderStatement": "The lamp was never delivered. Support told me twice they would send a replacement and never did.",
+      "label": "Not received — delivery ZIP mismatch",
+      "blurb": "Carrier says delivered, but to the wrong postcode, unsigned, and a promised reship never happened."
+    },
+    {
+      "disputeId": "DSP-1011",
+      "transactionRef": "TXN-1011",
+      "orderId": "ORD-1011",
+      "reasonCode": "10.4",
+      "reasonText": "Other Fraud — Card Absent Environment",
+      "network": "Visa",
+      "amountCents": 2400,
+      "filedAt": "2026-03-08T00:00:00Z",
+      "respondBy": "2026-03-28T00:00:00Z",
+      "cardholderStatement": "I did not authorise this. I have never signed up for any subscription with this merchant.",
+      "label": "Unauthorised — subscription renewal",
+      "blurb": "Seventh renewal on a consented signup, but notice emails bounced and the account has been dormant."
+    },
+    {
+      "disputeId": "DSP-1006",
+      "transactionRef": "TXN-1006",
+      "orderId": "ORD-1006",
+      "reasonCode": "12.6.1",
+      "reasonText": "Duplicate Processing",
+      "network": "Visa",
+      "amountCents": 7500,
+      "filedAt": "2026-03-10T00:00:00Z",
+      "respondBy": "2026-03-30T00:00:00Z",
+      "cardholderStatement": "I was charged $75 twice for one kettle. Support told me one charge would drop off and it did not.",
+      "label": "Duplicate processing — two captures",
+      "blurb": "Our own ledger shows two settled captures against one order. The cardholder is right."
+    }
+  ]
+}
