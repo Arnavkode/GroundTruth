@@ -9,9 +9,45 @@ Built on top of that one resolver are two real workflows:
 - **Reconcile** — batch-check a settlement report against a bank statement. Every transaction lands in one of three buckets: cleanly matched, matched with an explained difference (timing lag, partial refund, currency rounding, fee deduction), or genuinely flagged.
 - **Investigate** — point it at a single disputed transaction and a chargeback reason. It assembles every fragment of evidence into a timeline, marks what supports and what contradicts the claim, and drafts a rebuttal with a win-likelihood score that cites the specific evidence behind it.
 
-## Why this exists
+## The problem
 
-Reconciliation and dispute defense are two of the least glamorous, most expensive problems in payments — usually solved with brittle rule engines or hours of manual cross-referencing. Groundtruth treats them as one underlying problem: resolving the truth about a transaction from incomplete, sometimes-contradictory sources. Solve that well once, and both workflows fall out of it.
+**The money moved once. Every system that watched it wrote down something different.**
+
+A single payment leaves a trail across systems that never agree by design. The processor deducts a fee. The bank rounds its own currency conversion. The warehouse ships on its own clock. Support promises a refund in a chat window nobody reconciles against. By the time the statement arrives, the question *what actually happened here* has five partial answers and no authoritative one.
+
+Take one $75 kettle from the bundled fixtures — `TXN-1006`, as five systems recorded it:
+
+| System | What it says | Value |
+|---|---|---|
+| Order system | One order. One kettle. | `$75.00` |
+| Settlement ledger | Two captures, 47 seconds apart | `$150.00` |
+| Bank statement | Two credits totalling the settled net | `$145.04` |
+| Warehouse | One kettle shipped, delivered 9 March | `1 unit` |
+| Support log | *"The page hung when I clicked pay so I clicked again."* | day of |
+
+The cardholder was charged twice — and the bank statement, the system every reconciliation is run against, **balances to the cent**. $145.04 credited against $145.04 settled. An amount-only reconciliation passes this straight through.
+
+### Why it resists automation
+
+1. **Most differences are legitimate.** Fees, currency rounding, weekend posting lags, partial captures, refunds in flight. A naive diff flags all of them, so the exception queue fills with noise and people stop reading it.
+2. **The ones that matter hide inside the ones that don't.** A duplicate capture can reconcile to the cent. A delivery scan can say "delivered" to the wrong postcode. The signal isn't a number that doesn't match — it's a story that doesn't hold together.
+3. **Sometimes there is no answer.** Two customers, the same amount, thirteen minutes apart, one unlabelled bank credit. A tool that always returns a match will confidently record one of them as paid when they may not be. That is worse than an open item.
+
+Today this gets solved two ways, both bad: a rule engine that flags every difference and buries the real one in noise, or a person cross-referencing five tabs for hours per transaction. The same unresolved question drives the other half of the cost — you cannot defend a chargeback you cannot reconstruct, so merchants fight cases they should concede and concede cases they should win.
+
+## The approach
+
+**Stop comparing columns. Reconstruct the transaction, then say how sure you are.**
+
+| A rule engine | Groundtruth |
+|---|---|
+| Compares two numbers | Reconstructs what happened from every source that saw it |
+| Flags anything that differs | Names the cause when a difference is legitimate |
+| Passes anything that matches | Catches a duplicate that balances to the cent |
+| Returns a match or an exception | Returns a confidence score, and refuses below 60% |
+| Tells you a row is wrong | Tells you which record proves it, and what to do next |
+
+Reconciliation and dispute defence are the same underlying problem — establishing what happened from incomplete, conflicting sources. Solve that once and both workflows fall out of it.
 
 ## How it works
 

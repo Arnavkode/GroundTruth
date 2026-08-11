@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ArcCluster, ConfidenceDial, ResolverDiagram, ScatterField } from "@/components/decor";
+import { ConflictBoard, TheAnswer, WhyItsHard } from "@/components/problem";
 
 const HARD_CASES = [
   {
@@ -113,8 +114,84 @@ export default function Home() {
         ))}
       </section>
 
+      {/* ── The problem ──────────────────────────────────────────────────── */}
+      <section className="decor-host mt-20 border-t border-rule pt-12">
+        <ArcCluster className="decor -left-16 top-6 h-64 w-64 opacity-60" tone="#A8362C" />
+        <div className="above">
+          <p className="text-micro uppercase tracking-widest text-flagged">The problem</p>
+          <h2 className="mt-3 max-w-4xl font-display text-3xl leading-[1.15] sm:text-5xl">
+            The money moved once. Every system that watched it
+            <br className="hidden sm:block" /> wrote down something different.
+          </h2>
+          <p className="mt-5 max-w-2xl text-base leading-relaxed text-muted">
+            A single payment leaves a trail across systems that never agree by design. The processor
+            deducts a fee. The bank rounds its own currency conversion. The warehouse ships on its own
+            clock. Support promises a refund in a chat window nobody reconciles against. By the time
+            the statement arrives, the question <em>what actually happened here</em> has five partial
+            answers and no authoritative one.
+          </p>
+        </div>
+
+        <div className="above mt-10 grid gap-8 lg:grid-cols-[1.25fr_1fr]">
+          <ConflictBoard />
+          <div className="flex flex-col justify-center gap-5">
+            <p className="text-base leading-relaxed text-muted">
+              This is not an edge case dressed up. It is the ordinary shape of the problem: the
+              records disagree, most of the disagreements are innocent, and the one that matters is
+              invisible to the check everyone actually runs.
+            </p>
+            <p className="text-base leading-relaxed text-muted">
+              Today it gets solved two ways, both bad. A rule engine that flags every difference and
+              buries the real one in noise — or a person, cross-referencing five tabs, for hours, per
+              transaction.
+            </p>
+            <div className="rounded-lg border border-rule bg-surface px-5 py-4">
+              <p className="text-sm leading-relaxed">
+                The same unresolved question drives the other half of the cost:{" "}
+                <span className="text-ink">chargebacks</span>. You cannot defend a dispute you cannot
+                reconstruct, so merchants fight cases they should concede and concede cases they
+                should win.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="above mt-14">
+          <h3 className="font-display text-2xl">Why it resists automation</h3>
+          <div className="mt-6">
+            <WhyItsHard />
+          </div>
+        </div>
+      </section>
+
+      {/* ── The answer ───────────────────────────────────────────────────── */}
+      <section className="mt-20 border-t border-rule pt-12">
+        <p className="text-micro uppercase tracking-widest text-signal">The approach</p>
+        <h2 className="mt-3 max-w-3xl font-display text-3xl leading-[1.15] sm:text-4xl">
+          Stop comparing columns. Reconstruct the transaction, then say how sure you are.
+        </h2>
+        <p className="mt-5 max-w-2xl text-base leading-relaxed text-muted">
+          Groundtruth treats reconciliation and dispute defence as one problem — establishing what
+          happened from incomplete, conflicting sources — and solves it once. Deterministic checks
+          handle everything arithmetic can settle. A reasoning step reads the evidence arithmetic
+          cannot parse. The output is a resolution, a confidence score, and the specific records
+          behind both.
+        </p>
+        <div className="mt-8">
+          <TheAnswer />
+        </div>
+      </section>
+
       {/* ── Two modes ────────────────────────────────────────────────────── */}
-      <section className="mt-6 grid gap-5 md:grid-cols-2">
+      <section className="mt-20 border-t border-rule pt-12">
+        <h2 className="font-display text-3xl sm:text-4xl">Two workflows, one resolver</h2>
+        <p className="mt-3 max-w-2xl text-base leading-relaxed text-muted">
+          Both run on the same engine. Reconcile points it at a whole statement; Investigate points
+          it at a single disputed transaction and adds a second stage that drafts the response.
+        </p>
+      </section>
+
+      <section className="mt-8 grid gap-5 md:grid-cols-2">
         <ModeCard
           href="/reconcile"
           eyebrow="Reconcile"
