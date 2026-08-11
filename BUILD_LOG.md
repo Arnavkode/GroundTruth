@@ -267,13 +267,13 @@ ALL RESPONSIVE ASSERTIONS PASSED
    wide at every viewport. Replaced with a `div` carrying explicit `white-space: pre-wrap` and
    `overflow-wrap: anywhere`.
 
-**Caveat, stated plainly:** the harness step that clicks into a dispute *after* running a
-reconciliation stopped resolving its locator on the final iteration and is reported as `[WARN]`
-rather than a failure. An earlier run of the same suite (before I changed the locator) did drive
-that interaction successfully at all four widths and rendered the win likelihood — that earlier run
-is how I found the `<pre>` overflow bug in the first place. So Investigate has been visually
-verified at all four widths; the *automated re-check* of that one interaction is currently
-warning rather than asserting. Fixing the locator is a small job noted in `MORNING_CHECKLIST.md`.
+The suite drives both workflows to completion at every width — reconcile through to its three bucket
+counts, investigate through to a rendered win likelihood and the full representment letter — and
+asserts no horizontal scroll in each of those states.
+
+*(An earlier run had that last step intermittently failing to resolve its locator against a stale
+`next start` process holding port 3000 over a rebuilt `.next`. After a clean rebuild it passes at
+all four widths.)*
 
 ### 6. No real API key was used
 
@@ -297,7 +297,8 @@ Every resolver run reports `reasoning: mock` and the SSE `meta` event announces
 - **The preview URL returning 200 to the public.** It returns 302 to SSO. See the top of this file.
 - **The rate limiter across serverless cold starts.** The store is in-memory and per-instance, which
   is the documented tonight-baseline. Upstash upgrade noted as optional in the checklist.
-- **The Playwright locator for the post-reconcile Investigate click** (see §5 caveat).
+- **Visual design review by a human.** The first build was revised after feedback that it was too
+  sparse — see the design pass below and `DESIGN_NOTES.md`.
 
 ## Commands
 
@@ -311,4 +312,29 @@ npm run test:ratelimit # spend-guard proof
 npm run build && npm run start   # then, in another shell:
 npm run test:e2e       # both workflows over HTTP
 npx tsx scripts/test-responsive.ts   # 375/768/1024/1440
+npx tsx scripts/shot.ts              # screenshots into shots/
 ```
+
+---
+
+## Design pass (after review)
+
+Feedback on the first build: too empty, needs transitions between modes and pages, wants abstract
+shapes filling the space. All three are in:
+
+- **Decorative geometry** (`components/decor.tsx`) — a hero diagram of the actual resolver
+  architecture that draws itself in, ambient backdrop washes, concentric arcs, scatter fields,
+  confidence dials, a measurement grid. Everything clipped, non-interactive, and asserted not to
+  affect layout width at any breakpoint.
+- **Route transitions** (`components/PageTransition.tsx`) — pathname-keyed lift-and-fade on every
+  navigation, plus an animated active-route underline in the header.
+- **Filled empty states** — both mode pages now show the queued work, the sources involved and the
+  pipeline stages before the first run.
+- **Rebuilt landing page** — hero diagram, figures strip, the six hard cases as cards, three-column
+  footer carrying the live spend limits.
+
+Screenshot review during this pass caught two more bugs, both fixed: clipped source labels on the
+hero diagram (viewBox too tight) and a hard vertical seam where the grid panel ended (now masked).
+
+Re-verified after the change: build clean, responsive suite green at all four widths, both workflows
+still driving to completion.

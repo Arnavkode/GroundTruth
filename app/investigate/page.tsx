@@ -13,6 +13,7 @@ import {
 } from "@/components/ui";
 import { useResolverStream } from "@/components/useResolverStream";
 import { disputes } from "@/lib/fixtures";
+import { ArcCluster, ConfidenceDial, ScatterField } from "@/components/decor";
 import type { TimelineEvent } from "@/lib/resolver/types";
 
 function usd(cents: number) {
@@ -71,26 +72,48 @@ export default function InvestigatePage() {
 
   return (
     <div className="py-10">
-      <header className="max-w-2xl">
-        <p className="text-micro uppercase tracking-widest text-signal">Investigate mode</p>
-        <h1 className="mt-2 font-display text-4xl leading-tight sm:text-5xl">
-          One disputed transaction, every fragment of evidence
-        </h1>
-        <p className="mt-4 text-base leading-relaxed text-muted">
-          Pick a chargeback. The resolver assembles the order, shipment, settlement and support
-          record into a single timeline, marks what supports and what contradicts the cardholder,
-          then a second-stage agent drafts the representment with a win-likelihood score built from
-          the same evidence.
-        </p>
+      <header className="decor-host grid gap-8 lg:grid-cols-[1.4fr_1fr]">
+        <ArcCluster className="decor -left-20 -top-8 h-56 w-56 opacity-60" tone="#A8362C" />
+        <div className="above max-w-2xl">
+          <p className="text-micro uppercase tracking-widest text-signal">Investigate mode</p>
+          <h1 className="mt-2 font-display text-4xl leading-tight sm:text-5xl">
+            One disputed transaction, every fragment of evidence
+          </h1>
+          <p className="mt-4 text-base leading-relaxed text-muted">
+            Pick a chargeback. The resolver assembles the order, shipment, settlement and support
+            record into a single timeline, marks what supports and what contradicts the cardholder,
+            then a second-stage agent drafts the representment with a win-likelihood score built
+            from the same evidence.
+          </p>
+        </div>
+        <div className="above hidden self-end lg:block">
+          <ScatterField className="h-24 w-full opacity-90" />
+          <dl className="mt-2 grid grid-cols-3 gap-px overflow-hidden rounded border border-rule bg-rule text-center">
+            {[
+              ["4", "open disputes"],
+              ["2", "worth fighting"],
+              ["88%", "best case"],
+            ].map(([v, k]) => (
+              <div key={k} className="bg-surface px-2 py-3">
+                <dd className="tnum font-mono text-sm">{v}</dd>
+                <dt className="mt-0.5 text-micro uppercase tracking-widest text-muted">{k}</dt>
+              </div>
+            ))}
+          </dl>
+        </div>
       </header>
 
       <section className="mt-8">
         <h2 className="text-micro uppercase tracking-widest text-muted">Open disputes — 4</h2>
         <ul className="mt-3 grid gap-3 sm:grid-cols-2">
-          {disputes.map((d) => {
+          {disputes.map((d, i) => {
             const isActive = active === d.disputeId;
             return (
-              <li key={d.disputeId}>
+              <li
+                key={d.disputeId}
+                className="animate-riseIn"
+                style={{ animationDelay: `${i * 70}ms` }}
+              >
                 <button
                   className={`card flex h-full w-full flex-col gap-2 px-5 py-4 text-left transition-colors ${
                     isActive ? "border-signal bg-signal/[0.04]" : "hover:border-ink/25"
@@ -246,12 +269,78 @@ export default function InvestigatePage() {
         </section>
       )}
 
-      {state.phase === "idle" && (
-        <p className="mt-10 max-w-xl text-sm leading-relaxed text-muted">
-          Pick a dispute above. Each is a pre-selected case from the bundled fixtures — two the
-          merchant should fight, two it should not.
-        </p>
-      )}
+      {state.phase === "idle" && <InvestigateIdle />}
+    </div>
+  );
+}
+
+/** Pre-run state: the pipeline a dispute goes through, rather than blank space. */
+function InvestigateIdle() {
+  const stages = [
+    ["01", "Assemble", "Pull every fragment that mentions the transaction — order, settlement, carrier scan, support transcript, the chargeback itself."],
+    ["02", "Resolve", "Run the same deterministic checks Reconcile uses, then read the narrative evidence for corroboration or contradiction."],
+    ["03", "Weigh", "Score each piece of evidence for or against the cardholder's claim, starting from the network's published win rate for that reason code."],
+    ["04", "Draft", "Write the representment from those weighted factors, so every claim in the letter traces back to a record."],
+  ];
+  return (
+    <div className="mt-10 grid gap-8 lg:grid-cols-[1fr_20rem]">
+      <div className="decor-host card self-start px-5 py-6">
+        <div className="decor inset-0 grid-paper opacity-50" />
+        <div className="above">
+          <p className="text-micro uppercase tracking-widest text-muted">
+            What happens when you pick one
+          </p>
+          <ol className="mt-5 space-y-5">
+            {stages.map(([n, title, body], i) => (
+              <li
+                key={n}
+                className="animate-riseIn flex gap-4"
+                style={{ animationDelay: `${i * 80}ms` }}
+              >
+                <span className="tnum mt-0.5 font-mono text-xs text-signal">{n}</span>
+                <div className="border-l-2 border-rule pl-4">
+                  <p className="text-sm font-medium">{title}</p>
+                  <p className="mt-1 text-sm leading-relaxed text-muted">{body}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
+          <p className="mt-6 border-t border-rule pt-4 text-sm leading-relaxed text-muted">
+            Each dispute above is a pre-selected case from the bundled fixtures — two the merchant
+            should fight, two it should not. The resolver will tell you which is which.
+          </p>
+        </div>
+      </div>
+
+      <aside className="space-y-6">
+        <div className="card px-5 py-5">
+          <ConfidenceDial className="mx-auto h-auto w-36" value={0.44} tone="#9A6511" />
+          <p className="mt-2 text-center text-micro uppercase tracking-widest text-muted">
+            win likelihood, scored not asserted
+          </p>
+          <ul className="mt-5 space-y-2.5 border-t border-rule pt-4 text-xs">
+            {[
+              ["Represent", "text-matched", "60% and above"],
+              ["Represent with caution", "text-explained", "35 – 59%"],
+              ["Accept liability", "text-flagged", "below 35%"],
+            ].map(([label, tone, band]) => (
+              <li key={label} className="flex items-baseline justify-between gap-3">
+                <span className={tone}>{label}</span>
+                <span className="tnum font-mono text-muted">{band}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="card px-5 py-4">
+          <p className="text-micro uppercase tracking-widest text-muted">Honest by construction</p>
+          <p className="mt-2 text-xs leading-relaxed text-muted">
+            Capped at 88% and floored at 5% — issuers are unpredictable, and a 95% claim on a
+            chargeback would be dishonest. Two of these four come back{" "}
+            <span className="text-flagged">accept liability</span>; for one of them the decisive
+            evidence against us is our own settlement export.
+          </p>
+        </div>
+      </aside>
     </div>
   );
 }

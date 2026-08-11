@@ -12,6 +12,7 @@ import {
   Timeline,
 } from "@/components/ui";
 import { useResolverStream } from "@/components/useResolverStream";
+import { ArcCluster, ScatterField } from "@/components/decor";
 import type { ResolvedStatus, Resolution } from "@/lib/resolver/types";
 
 const BUCKETS: { status: ResolvedStatus; blurb: string }[] = [
@@ -47,16 +48,34 @@ export default function ReconcilePage() {
 
   return (
     <div className="py-10">
-      <header className="max-w-2xl">
-        <p className="text-micro uppercase tracking-widest text-signal">Reconcile mode</p>
-        <h1 className="mt-2 font-display text-4xl leading-tight sm:text-5xl">
-          Bank statement against settlement report
-        </h1>
-        <p className="mt-4 text-base leading-relaxed text-muted">
-          Sixteen reconciliation units built from a Meridian Commercial statement (16 Feb – 12 Mar
-          2026) and the Halyard Payments ledger export. Every unit runs through the resolver and
-          lands in one of three buckets, with the evidence behind it.
-        </p>
+      <header className="decor-host grid gap-8 lg:grid-cols-[1.4fr_1fr]">
+        <ArcCluster className="decor -left-20 -top-8 h-56 w-56 opacity-60" />
+        <div className="above max-w-2xl">
+          <p className="text-micro uppercase tracking-widest text-signal">Reconcile mode</p>
+          <h1 className="mt-2 font-display text-4xl leading-tight sm:text-5xl">
+            Bank statement against settlement report
+          </h1>
+          <p className="mt-4 text-base leading-relaxed text-muted">
+            Sixteen reconciliation units built from a Meridian Commercial statement (16 Feb – 12 Mar
+            2026) and the Halyard Payments ledger export. Every unit runs through the resolver and
+            lands in one of three buckets, with the evidence behind it.
+          </p>
+        </div>
+        <div className="above hidden self-end lg:block">
+          <ScatterField className="h-24 w-full opacity-90" />
+          <dl className="mt-2 grid grid-cols-3 gap-px overflow-hidden rounded border border-rule bg-rule text-center">
+            {[
+              ["16 Feb", "period from"],
+              ["12 Mar", "period to"],
+              ["2.9% + 30c", "fee schedule"],
+            ].map(([v, k]) => (
+              <div key={k} className="bg-surface px-2 py-3">
+                <dd className="tnum font-mono text-sm">{v}</dd>
+                <dt className="mt-0.5 text-micro uppercase tracking-widest text-muted">{k}</dt>
+              </div>
+            ))}
+          </dl>
+        </div>
       </header>
 
       <div className="mt-7 flex flex-wrap items-center gap-3">
@@ -222,12 +241,81 @@ export default function ReconcilePage() {
         );
       })}
 
-      {state.phase === "idle" && (
-        <p className="mt-12 max-w-xl text-sm leading-relaxed text-muted">
-          Nothing has run yet. The reconciliation works against bundled fixture data and needs no
-          credentials — press the button.
-        </p>
-      )}
+      {state.phase === "idle" && <ReconcileIdle />}
+    </div>
+  );
+}
+
+/** Pre-run state: shows what is about to happen rather than an empty page. */
+function ReconcileIdle() {
+  const sources = [
+    ["settlement", "Halyard ledger export"],
+    ["bank", "Meridian statement lines"],
+    ["order", "storefront order records"],
+    ["shipment", "carrier tracking scans"],
+    ["chat", "support transcripts"],
+    ["dispute", "filed chargebacks"],
+  ];
+  return (
+    <div className="mt-10 grid gap-8 lg:grid-cols-[1fr_20rem]">
+      <div className="decor-host card self-start px-5 py-5">
+        <div className="decor inset-0 grid-paper opacity-50" />
+        <div className="above">
+          <p className="text-micro uppercase tracking-widest text-muted">
+            Queued — 16 units awaiting resolution
+          </p>
+          <ul className="mt-4 space-y-2.5">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <li key={i} className="flex items-center gap-3" aria-hidden>
+                <span className="h-2 w-2 shrink-0 rounded-full bg-rule" />
+                <span className="skeleton h-2.5 w-20 shrink-0" />
+                <span
+                  className="skeleton h-2.5"
+                  style={{ width: `${34 + ((i * 13) % 46)}%` }}
+                />
+                <span className="skeleton ml-auto h-2.5 w-9 shrink-0" />
+              </li>
+            ))}
+          </ul>
+          <p className="mt-5 border-t border-rule pt-4 text-sm leading-relaxed text-muted">
+            Nothing has run yet. The reconciliation works entirely against bundled fixture data and
+            needs no credentials — press <span className="text-ink">Run reconciliation</span> and the
+            resolver will stream its work source by source.
+          </p>
+        </div>
+      </div>
+
+      <aside className="space-y-6">
+        <div className="card px-5 py-4">
+          <p className="text-micro uppercase tracking-widest text-muted">Sources it reads</p>
+          <ul className="mt-3 space-y-2">
+            {sources.map(([name, desc]) => (
+              <li key={name} className="flex items-baseline gap-2.5 text-xs">
+                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-signal/60" aria-hidden />
+                <span className="text-micro uppercase tracking-widest text-signal">{name}</span>
+                <span className="text-muted">{desc}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="card px-5 py-4">
+          <p className="text-micro uppercase tracking-widest text-muted">Buckets it sorts into</p>
+          <ul className="mt-3 space-y-3">
+            {BUCKETS.map(({ status, blurb }) => {
+              const m = STATUS_META[status];
+              return (
+                <li key={status} className="flex gap-2.5">
+                  <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${m.dot}`} aria-hidden />
+                  <span className="text-xs leading-relaxed">
+                    <span className={m.text}>{m.label}</span>
+                    <span className="text-muted"> — {blurb}</span>
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      </aside>
     </div>
   );
 }

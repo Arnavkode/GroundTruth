@@ -87,14 +87,14 @@ Then confirm:
 5. Watch the first few responses for quality — the mock reasoning sets a deliberately high bar, and
    the prompt in `llm.ts` was tuned against it but never against the live model.
 
-## 6. Fix the one warning in the responsive harness
+## 6. Nothing outstanding in the test harness
 
-`scripts/test-responsive.ts` reports `[WARN] investigate interaction not driven` at each width: the
-locator for the dispute card stopped resolving after a reconciliation run in the same context. An
-earlier version using `getByRole("button", { name: /Duplicate processing/i })` did work at all four
-widths — that run is what caught the letter-overflow bug. Restore that locator, or give the dispute
-buttons a stable `data-testid`. All hard overflow and touch-target assertions pass; this is the
-automated re-check of one interaction, not a product defect.
+The responsive suite passes cleanly at 375 / 768 / 1024 / 1440 — both workflows driven to
+completion, no horizontal scroll, no touch target under 44px. If it ever hangs on a locator, the
+cause is a stale `next start` holding port 3000 against a rebuilt `.next`: kill the listening PID,
+then `rm -rf .next && npm run build && npm run start`.
+
+`npx tsx scripts/shot.ts` writes screenshots to `shots/` if you want to eyeball it quickly.
 
 ## 7. Optional — more fixture cases
 

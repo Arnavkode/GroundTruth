@@ -69,15 +69,54 @@ so it needs no second legend.
 scaled to the largest absolute weight. They are the derivation of the win-likelihood number, not an
 illustration of it.
 
+## Decorative geometry
+
+The first pass was too sparse — correct restraint, wrong amount of it. The fix was not ornament for
+its own sake but *data geometry*: shapes drawn from the vocabulary the product already uses, so the
+decoration still reads as belonging to a reconciliation tool.
+
+All of it lives in `components/decor.tsx`. Every piece is `aria-hidden`, `pointer-events-none`,
+absolutely positioned inside a clipped `.decor-host`, and never contributes to layout width — the
+responsive suite asserts that at all four breakpoints.
+
+| Element | Where | What it is |
+|---|---|---|
+| `ResolverDiagram` | Landing hero | Five evidence sources converging through the resolver node and fanning into three outcome buckets, with confidence ticks. Literally the product architecture, drawn. Strokes draw themselves in on mount. |
+| `BackdropField` | Fixed, whole app | Three soft colour washes (signal / explained / flagged at 5–7% behind a heavy blur), concentric dashed rings, and measurement ticks down the left edge. |
+| `ArcCluster` | Section corners, mode cards | Concentric quarter-arcs tinted to the section status colour. Brightens on card hover. |
+| `ScatterField` | Page headers | Plotted marks with a dashed trend line — transactions scattered against a period. |
+| `ConfidenceDial` | Explainer panels | A half-dial with the 60% flag threshold ticked, echoing the real confidence meter. |
+| `.grid-paper` | Hero, empty states | A 34px measurement grid at 4.5% opacity, masked so it fades rather than ending on a seam. |
+
+The wordmark is a small glyph of the same idea: three coloured strands resolving to one point.
+
+## Filling the empty states
+
+Both mode pages used to be one sentence of grey text before you pressed anything. They now show what
+is *about* to happen:
+
+- **Reconcile** — a queued ledger of skeleton rows with a sweeping shimmer, plus the six sources it
+  will read and the three buckets it sorts into.
+- **Investigate** — the four-stage pipeline a dispute goes through (assemble → resolve → weigh →
+  draft), a win-likelihood dial with the recommendation bands, and why the score caps at 88%.
+
 ## Motion
 
-Two things move, both because a state changed:
+Motion is used in four places, each reporting a state change:
 
-1. `settle` (220ms) — rows fading up 3px as they arrive on the stream.
-2. `pulseDot` — a three-dot pulse while the reasoning step runs.
+1. `pageIn` (420ms) — route transitions. The subtree is keyed on `usePathname`, so moving between
+   Reconcile and Investigate lifts and fades the new view in rather than hard-swapping it. The
+   header active-route underline scales in from the left over 300ms.
+2. `riseIn` (520ms, staggered 60–80ms) — cards and list items arriving in a grid.
+3. `settle` (220ms) — rows landing as they arrive on the SSE stream.
+4. `drawIn` / `popIn` — the hero diagram assembling itself: strands draw, then nodes pop, then the
+   confidence ticks appear.
 
-No page-load choreography. `prefers-reduced-motion: reduce` drops every animation and transition to
-0.01ms.
+Plus two ambient loops that are deliberately near-imperceptible: the backdrop washes drift 14px over
+22–28 seconds, and skeleton rows shimmer while queued.
+
+Nothing bounces, nothing slides in from off-screen, and no motion runs longer than ~520ms except the
+ambient drift. `prefers-reduced-motion: reduce` drops every animation and transition to 0.01ms.
 
 ## Accessibility
 

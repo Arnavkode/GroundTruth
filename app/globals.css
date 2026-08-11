@@ -60,6 +60,49 @@
   }
 }
 
+@layer components {
+  /* Decorative geometry layers. Never interactive, never in the layout flow,
+     always clipped — so they cannot create scroll width at any viewport. */
+  .decor {
+    @apply pointer-events-none absolute select-none;
+    z-index: 0;
+  }
+
+  .decor-host {
+    @apply relative overflow-hidden;
+  }
+
+  /* Content always sits above the geometry. */
+  .above {
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Fine measurement grid, used behind hero and empty states. */
+  .grid-paper {
+    background-image:
+      linear-gradient(to right, rgba(20, 22, 26, 0.045) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(20, 22, 26, 0.045) 1px, transparent 1px);
+    background-size: 34px 34px;
+  }
+
+  /* Skeleton bar for the pre-run ledger preview. */
+  .skeleton {
+    @apply relative overflow-hidden rounded bg-rule/60;
+  }
+
+  .skeleton::after {
+    content: "";
+    @apply absolute inset-0 animate-sweep;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.85),
+      transparent
+    );
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
