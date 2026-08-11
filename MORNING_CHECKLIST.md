@@ -13,7 +13,7 @@ decision.
 
 ```bash
 vercel project protection disable groundtruth --sso
-curl -s -o /dev/null -w "%{http_code}\n" https://groundtruth-lkzoy2i66-arnav-guptas-projects-4ac946ea.vercel.app
+curl -s -o /dev/null -w "%{http_code}\n" https://groundtruth-j8gcgnf0r-arnav-guptas-projects-4ac946ea.vercel.app
 # expect: 200
 ```
 
