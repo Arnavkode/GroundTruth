@@ -4,13 +4,20 @@ The brief asks for core logic over surface polish, and says restrained must not 
 rule I worked to: **spend the design budget on the evidence trail, and nowhere else.** The score, the
 checks and the timeline are the product made legible — everything around them is a quiet frame.
 
-## Typeface pairing
+## Typeface
+
+**Geist Sans + Geist Mono**, two variable fonts, self-hosted via the `geist` package — zero external
+requests and two files instead of six.
 
 | Role | Face | Why |
 |---|---|---|
-| Display | **Instrument Serif** 400 | A serif with actual character in the headline sizes — it reads considered rather than defaulted, and it stops the app looking like a Tailwind template. Used only for page and section headings. |
-| Body | **IBM Plex Sans** 400/500/600 | Designed for technical interfaces: open counters, unambiguous at 13–15px, humanist enough not to feel cold. |
-| Numeric / identifiers | **IBM Plex Mono** 400/500 | Every amount, confidence figure, timestamp and record ID. Same family as the body face, so the mono blocks sit in the page rather than on it. |
+| Display | **Geist Sans**, 500, `-0.028em` tracking | A grotesque, not a serif, so headlines need negative tracking and a touch of weight to read as display type rather than large body text. That tuning lives in one rule on `.font-display`. |
+| Body | **Geist Sans** 400 | Built for interface text: open counters, unambiguous at 13–15px, neutral without being characterless. |
+| Numeric / identifiers | **Geist Mono** | Every amount, confidence figure, timestamp and record ID. Same family as the body face, so mono blocks sit in the page rather than on it. |
+
+*The first build paired Instrument Serif with IBM Plex Sans/Mono — six font files across three
+families. It looked good and loaded slower than it should have. Geist is the faster, more coherent
+call: one type family, two variable files, and the display tuning does the work the serif used to.*
 
 Tabular numerals (`.tnum`) on every figure that appears in a column — amounts, deltas, percentages —
 so digits align down the page.
@@ -117,6 +124,20 @@ Plus two ambient loops that are deliberately near-imperceptible: the backdrop wa
 
 Nothing bounces, nothing slides in from off-screen, and no motion runs longer than ~520ms except the
 ambient drift. `prefers-reduced-motion: reduce` drops every animation and transition to 0.01ms.
+
+## Performance
+
+The first build was noticeably laggy. Four causes, all fixed:
+
+| Cause | Fix |
+|---|---|
+| Three `blur-3xl` layers (64px blur over ~900px boxes) with infinite transform animations | Replaced with soft radial gradients painted once. Same look, no filter, no compositing, no per-frame rasterisation. This was the big one. |
+| `backdrop-blur-md` on the sticky header, repainting over those blurs every scroll frame | Solid `bg-paper`. |
+| Six font files across three families, fetched from Google | Two self-hosted variable fonts (`geist`). Zero external font requests. |
+| A full reconcile run paced at ~28 seconds | Split pacing: batch runs at 14/22/90ms per step, single Investigate cases keep the slower 70/100/320ms cadence because there the trace is the thing you read. **Reconcile now completes in ~6.0s, Investigate in ~1.9s.** |
+
+Row components that re-render on every streamed event (`CheckRow`, `CitationTag`, `SourcePip`,
+`Timeline`) are memoised, so a 217-event reconcile run does not re-render every row on every tick.
 
 ## Accessibility
 

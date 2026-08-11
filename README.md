@@ -109,6 +109,7 @@ See `MORNING_CHECKLIST.md` for exactly what to do to go live, and `BUILD_LOG.md`
 ## Tech stack
 
 - Next.js 14 (App Router) + TypeScript + Tailwind CSS
+- Geist Sans / Geist Mono, self-hosted variable fonts — no external font requests
 - Anthropic API (`@anthropic-ai/sdk`, `claude-sonnet-4-6`) for the resolver's reasoning step
 - Server-Sent Events for live streaming of resolver output
 - No database — evidence fixtures are bundled JSON; nothing here needs to persist across requests

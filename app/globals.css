@@ -16,6 +16,13 @@
     font-feature-settings: "kern" 1, "liga" 1;
   }
 
+  /* Geist is a grotesque, not a serif — headlines need negative tracking and a
+     touch more weight to read as display type rather than large body text. */
+  .font-display {
+    letter-spacing: -0.028em;
+    font-weight: 500;
+  }
+
   /* Numbers in tables and evidence rows must align column-to-column. */
   .tnum {
     font-variant-numeric: tabular-nums;

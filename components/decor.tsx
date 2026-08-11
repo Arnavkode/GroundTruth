@@ -14,30 +14,29 @@ const MATCHED = "#2E6F4E";
 const EXPLAINED = "#9A6511";
 const FLAGGED = "#A8362C";
 
-/** Full-page ambient wash. Rendered once in the layout, fixed behind content. */
+/**
+ * Full-page ambient wash.
+ *
+ * Deliberately filter-free. The first version used three `blur-3xl` layers with
+ * infinite transform animations, which forced the compositor to re-rasterise a
+ * 64px blur over ~900px boxes on every frame — the single biggest source of
+ * scroll jank. Soft radial gradients paint the same look once, for free.
+ */
 export function BackdropField() {
   return (
-    <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden" aria-hidden>
-      {/* Soft colour washes — the only large-area colour in the app. */}
-      <div
-        className="decor -right-40 -top-40 h-[34rem] w-[34rem] animate-drift rounded-full opacity-[0.07] blur-3xl"
-        style={{ background: `radial-gradient(circle, ${SIGNAL} 0%, transparent 68%)` }}
-      />
-      <div
-        className="decor -left-52 top-[28rem] h-[30rem] w-[30rem] animate-driftAlt rounded-full opacity-[0.06] blur-3xl"
-        style={{ background: `radial-gradient(circle, ${EXPLAINED} 0%, transparent 68%)` }}
-      />
-      <div
-        className="decor bottom-[-14rem] right-[6rem] h-[26rem] w-[26rem] animate-drift rounded-full opacity-[0.05] blur-3xl"
-        style={{ background: `radial-gradient(circle, ${FLAGGED} 0%, transparent 70%)` }}
-      />
-
-      {/* Concentric rings, top right. */}
-      <svg
-        className="decor right-[-9rem] top-[3rem] h-[26rem] w-[26rem] animate-driftAlt"
-        viewBox="0 0 400 400"
-        fill="none"
-      >
+    <div
+      className="pointer-events-none fixed inset-0 -z-10 overflow-hidden"
+      aria-hidden
+      style={{
+        backgroundImage: [
+          `radial-gradient(52rem 40rem at 108% -6%, ${SIGNAL}12, transparent 62%)`,
+          `radial-gradient(46rem 38rem at -12% 46%, ${EXPLAINED}0f, transparent 60%)`,
+          `radial-gradient(40rem 34rem at 88% 108%, ${FLAGGED}0d, transparent 62%)`,
+        ].join(", "),
+      }}
+    >
+      {/* Concentric rings, top right. Static — 4 strokes, no filter. */}
+      <svg className="decor right-[-9rem] top-[3rem] h-[26rem] w-[26rem]" viewBox="0 0 400 400" fill="none">
         {[60, 105, 150, 195].map((r, i) => (
           <circle
             key={r}

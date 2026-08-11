@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import type { Check, Citation, ResolvedStatus, TimelineEvent } from "@/lib/resolver/types";
 
 export const STATUS_META: Record<
@@ -99,7 +100,7 @@ const OUTCOME_MARK: Record<string, { glyph: string; cls: string; label: string }
   missing: { glyph: "○", cls: "text-muted border-rule bg-paper", label: "Evidence missing" },
 };
 
-export function CheckRow({ check }: { check: Check }) {
+function CheckRowBase({ check }: { check: Check }) {
   const m = OUTCOME_MARK[check.outcome] ?? OUTCOME_MARK.missing;
   return (
     <li className="flex gap-3 py-3 animate-settle">
@@ -141,7 +142,7 @@ const SOURCE_LABEL: Record<string, string> = {
   dispute: "dispute",
 };
 
-export function CitationTag({ citation }: { citation: Citation }) {
+function CitationTagBase({ citation }: { citation: Citation }) {
   return (
     <span
       className="inline-flex max-w-full items-center gap-1.5 rounded border border-rule bg-paper px-2 py-1 text-xs"
@@ -156,7 +157,7 @@ export function CitationTag({ citation }: { citation: Citation }) {
   );
 }
 
-export function SourcePip({
+function SourcePipBase({
   source,
   found,
   detail,
@@ -188,7 +189,7 @@ const STANCE: Record<string, { cls: string; label: string }> = {
   neutral: { cls: "border-l-rule", label: "" },
 };
 
-export function Timeline({ events }: { events: TimelineEvent[] }) {
+function TimelineBase({ events }: { events: TimelineEvent[] }) {
   return (
     <ol className="relative">
       {events.map((e, i) => {
@@ -253,3 +254,10 @@ export function Running({ label }: { label: string }) {
     </span>
   );
 }
+
+/* These render once per streamed event across long lists; memoising them keeps
+   a 16-unit reconcile run from re-rendering every row on every tick. */
+export const CheckRow = memo(CheckRowBase);
+export const CitationTag = memo(CitationTagBase);
+export const SourcePip = memo(SourcePipBase);
+export const Timeline = memo(TimelineBase);

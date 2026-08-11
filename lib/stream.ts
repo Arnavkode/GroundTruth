@@ -9,7 +9,12 @@ import { checkRateLimit, clientIp, type Decision } from "./ratelimit";
 import { disputes } from "./fixtures";
 
 /** Mock steps are paced like real ones so the demo feels identical either way. */
-const PACE = { source: 90, check: 130, reason: 420, unit: 60 };
+/**
+ * Batch runs pace fast enough to feel responsive; a single Investigate case
+ * keeps the slower cadence, because there the trace is the thing you read.
+ */
+const PACE_BATCH = { source: 14, check: 22, reason: 90, unit: 10 };
+const PACE_SINGLE = { source: 70, check: 100, reason: 320, unit: 40 };
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -40,6 +45,7 @@ async function emitSources(
   send: (e: StreamEvent) => void,
   b: EvidenceBundle,
   paced: boolean,
+  PACE: typeof PACE_BATCH,
 ) {
   const rows: [string, boolean, string][] = [
     [
@@ -79,6 +85,7 @@ async function resolveOne(
   decision: Decision,
   send: (e: StreamEvent) => void,
   paced: boolean,
+  PACE: typeof PACE_BATCH,
 ): Promise<Resolution> {
   const checks = runDeterministicChecks(b);
   for (const c of checks) {
@@ -155,9 +162,9 @@ export function reconcileStream(request: Request): ReadableStream<Uint8Array> {
             total: bundles.length,
             label: unitLabel(b),
           });
-          if (paced) await sleep(PACE.unit);
-          await emitSources(send, b, paced);
-          const r = await resolveOne(b, decision, send, paced);
+          if (paced) await sleep(PACE_BATCH.unit);
+          await emitSources(send, b, paced, PACE_BATCH);
+          const r = await resolveOne(b, decision, send, paced, PACE_BATCH);
           if (r.status === "matched") counts.matched += 1;
           else if (r.status === "explained-difference") counts.explained += 1;
           else counts.flagged += 1;
@@ -212,10 +219,10 @@ export function investigateStream(request: Request, disputeId: string): Readable
           label: `${dispute.reasonCode} ${dispute.reasonText} — ${usd(dispute.amountCents)}`,
         });
 
-        await emitSources(send, b, paced);
-        const resolution = await resolveOne(b, decision, send, paced);
+        await emitSources(send, b, paced, PACE_SINGLE);
+        const resolution = await resolveOne(b, decision, send, paced, PACE_SINGLE);
 
-        if (paced) await sleep(PACE.reason);
+        if (paced) await sleep(PACE_SINGLE.reason);
         send({
           type: "rebuttal",
           rebuttal: buildRebuttal(dispute, resolution),
