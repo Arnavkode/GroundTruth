@@ -73,8 +73,9 @@ Every unsupervised call made during the build, and why.
 - **Exhaustion routes to mock, never errors.** The brief calls for failing safe; this also means the
   demo cannot be broken by hitting the limit.
 - **Placeholder keys are treated as no key.** `sk-ant-placeholder` must never enable spend.
-- **In-memory store, per serverless instance.** Accepted as the tonight-baseline: no signup, no cost,
-  and errs conservatively per instance. Upgrade documented, not built.
+- **In-memory store, per serverless instance.** Accepted as the overnight baseline: no signup, no
+  cost, and conservative per instance. **Superseded** — see the addendum below; it is now Upstash
+  Redis when configured, with the in-memory store as the unconfigured fallback.
 
 ## Rebuttal engine
 
@@ -89,15 +90,16 @@ Every unsupervised call made during the build, and why.
 
 ## Design
 
-- **Instrument Serif + IBM Plex Sans + IBM Plex Mono.** A display serif with real character against
-  a workhorse humanist sans, plus a mono for every identifier and figure. Details in
-  `DESIGN_NOTES.md`.
+- **Instrument Serif + IBM Plex Sans + IBM Plex Mono** originally. **Superseded by Geist Sans +
+  Geist Mono** after the site was reported laggy: two self-hosted variable fonts instead of six
+  Google-hosted files. Details and the display-type tuning in `DESIGN_NOTES.md`.
 - **Light-only, no dark mode.** A deliberate commitment rather than an omission — one palette done
   properly beats two done at 2am.
 - **The confidence meter draws the 60% threshold**, so you can see how close a call was rather than
   only which side it landed on.
-- **Motion limited to two things**: rows settling in as they stream (220 ms) and a three-dot pulse
-  while reasoning runs. Both report state changes. `prefers-reduced-motion` disables them.
+- **Motion limited to state changes** — rows settling as they stream, a pulse while reasoning runs,
+  and (added in the design pass) route transitions and staggered card reveals. `prefers-reduced-motion`
+  disables all of it. The blurred animated backdrop from that pass was removed again for performance.
 
 ## Process
 
@@ -107,3 +109,57 @@ Every unsupervised call made during the build, and why.
   same verification, no 150MB download.
 - **Deployment protection left enabled.** Disabling it was blocked by the environment's safety
   classifier. Documented as step 1 of `MORNING_CHECKLIST.md` rather than worked around.
+
+---
+
+## Addendum — ingestion layer and public-deployment guardrails
+
+### Schema and architecture
+
+- **`buildEvidenceBundles(dataset)` takes a dataset instead of reading fixtures.** The brief's
+  requirement that the resolver "should not know or care" where evidence came from is only true if
+  there is one code path, so the fixtures were re-expressed as an ordinary `EvidenceDataset` and pass
+  through the same function as an upload. `origin` is carried for display only and never branches logic.
+- **The fee schedule moved onto the bundle.** It used to be module-level state read from the fixture
+  JSON. With uploads that becomes wrong — one merchant's rate is not another's — and worse, it would
+  be shared mutable state under concurrency. It now travels with the evidence, and is a form field on
+  the upload.
+- **`checkRateLimit` is now `async`.** Unavoidable: Redis is a network call. The brief asked for the
+  interface to stay put, and it did in shape (`(ip, opts) → Decision`), but the signature had to gain
+  a Promise. Two call sites in `lib/stream.ts` changed; nothing else in the app did.
+- **A dependency-free CSV parser** rather than a library. The upload endpoint accepts public input,
+  and a ~90-line parser I can read end to end is a smaller attack surface than a transitive dep tree.
+
+### Security posture
+
+- **The resolve endpoints re-validate the dataset.** `/api/ingest` is a convenience, not the boundary.
+  A client can POST a hand-made dataset straight to `/api/reconcile`, so `clampDataset()` re-applies
+  the row cap and re-sanitises every string there too. The e2e suite proves an 80-row hand-made
+  dataset is still refused.
+- **Prompt-injection defence is structural first, prompt second.** The system-prompt instruction is
+  worth having, but it depends on the model complying. The load-bearing defence is that the model
+  *cannot* set status or confidence — those are computed from deterministic checks, and its only
+  output that touches the score is a weight clamped to [-1, 1]. The test asserts this by feeding in a
+  reply with `weight: 9999` and confirming nothing moves.
+- **The sanitiser neutralises delimiters visibly** (`[redacted-delimiter]`) rather than stripping them
+  silently, so a reviewer reading the evidence can see an injection was attempted. That is a finding,
+  not noise to hide.
+- **Spend uses a headroom reservation, not a post-hoc check.** A call is permitted only if the
+  remaining budget covers `WORST_CASE_CALL_USD`. Checking spend *after* the fact would let concurrent
+  in-flight calls overshoot the ceiling.
+- **Per-IP default dropped 10 → 3/hour**, per the brief's recommendation for public exposure.
+
+### Judgement calls
+
+- **Row cap counts chat messages as rows.** They are the cheapest way to inflate a prompt, so they
+  count toward the 50 like anything else.
+- **Text truncation is reported per field with before/after lengths**, not a generic "some fields were
+  truncated". The brief asked for a visible notice; a count without locations is not actionable.
+- **A bad row fails the whole row, not the whole file.** Good rows are still accepted, and every
+  rejected row is named with its number, field and reason — matching the brief's "not just a generic
+  invalid file".
+- **Recommended against adding a real API key.** Not because the guardrails are incomplete — they are
+  built and proven — but because the persistent limiter has only ever run against a fake Redis. Until
+  a live deployment reports `store: "redis"`, the caps are per-instance and the guardrail that matters
+  most isn't actually running. Reasoning is in `BUILD_LOG.md`; the safe sequence is in
+  `MORNING_CHECKLIST.md`.

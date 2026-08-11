@@ -27,65 +27,80 @@ vercel deploy --prod
 
 Nothing else changes — the same build, the same mock-mode behaviour.
 
-## 3. Read the rate limiter before you add a real API key
+## 3. Read the guardrails before you add a real API key
 
-**Do this before step 4, not after.** The whole spend-guard story is one file:
+**Do this before step 4, not after.** Five independent triggers, all failing the same safe way —
+when any of them says no, the request is served with canned reasoning rather than erroring.
 
-- **`lib/ratelimit.ts`** — read it top to bottom, it is ~150 lines and commented.
-  - Per IP: `RATE_LIMIT_PER_IP_PER_HOUR`, default **10**, sliding 1-hour window.
-  - Global: `DAILY_REAL_CALL_CAP`, default **200**, rolling 24-hour window.
-  - Both **fail safe**: on exhaustion the request is routed to mock reasoning, never errored. A user
-    always gets a working resolution; only the reasoning provenance degrades.
-  - `hasRealApiKey()` rejects placeholders (`sk-ant-placeholder`, `your-key-here`, empty, unset) —
-    a placeholder can never accidentally enable spend.
-  - `FORCE_MOCK_MODE=1` overrides everything, for demos.
-- **`lib/resolver/llm.ts`** — the only file that calls Anthropic. Check `MAX_TOKENS = 1200` (firm,
-  no open-ended generations) and that it never runs without a slot reserved by the limiter.
-- Re-run the proof yourself: `npm run test:ratelimit`.
+| Trigger | Env var | Default | Recommended for public |
+|---|---|---|---|
+| Kill switch | `DISABLE_REAL_MODE` | off | keep handy, see §7 |
+| Per IP, per hour | `RATE_LIMIT_PER_IP_PER_HOUR` | **3** | 3 |
+| Global calls per day | `DAILY_REAL_CALL_CAP` | 200 | 50 for the first day |
+| Global dollars per day | `DAILY_SPEND_CAP_USD` | **$5** | $2 for the first day |
+| Per upload | hard-coded `LIMITS.MAX_REAL_CALLS_PER_UPLOAD` | 10 | 10 |
 
-Known limitation: the store is in-memory, so the cap is per serverless instance and resets on cold
-start. That was the deliberate zero-signup baseline. See item 8 for the upgrade.
+Read these three files, in this order:
 
-## 4. Add a real `ANTHROPIC_API_KEY` — only when you're ready to spend
+- **`lib/ratelimit.ts`** — the whole spend story, ~330 lines and commented. Note `WORST_CASE_CALL_USD`:
+  a call is only permitted if the remaining budget covers the worst case it could cost, so an
+  in-flight call can never push spend past the ceiling.
+- **`lib/ingest/index.ts`** — the input caps (50 rows, 1MB, 2000 chars/field) and the sanitiser.
+  These are cost controls first: rows bound how many live calls one upload triggers, characters
+  bound how big any single prompt gets.
+- **`lib/resolver/llm.ts`** — the only file that calls Anthropic. Check `MAX_TOKENS = 1200` and the
+  `SECURITY` block at the top of the system prompt.
 
-**Where:** Vercel dashboard → Project `groundtruth` → **Settings → Environment Variables** → add
-`ANTHROPIC_API_KEY` for the Preview environment (and Production if you did step 2), then redeploy.
+Re-run the proofs yourself: `npm run test:guardrails && npm run test:ingest`.
 
-Locally: create `.env.local` with `ANTHROPIC_API_KEY=sk-ant-...` (see `.env.example`).
+## 4. Set up Upstash — this is the actual gate on adding a key
 
-Detection is automatic — **no code change is needed**. The app flips the reasoning step to live and
-keeps everything else identical.
+**The limiter is only global if Redis is configured.** Without it, each serverless instance keeps its
+own counters, so the effective public limit is (configured limit × concurrent instances). The
+guardrails test demonstrates this directly: six instances against a limit of three let all six
+through.
 
-Consider starting with a tighter cap for the first day:
-
-```
-RATE_LIMIT_PER_IP_PER_HOUR=3
-DAILY_REAL_CALL_CAP=25
-```
-
-Note: one Reconcile run resolves **16 units**, so it makes up to 16 real calls if every unit takes
-the live path. Size `DAILY_REAL_CALL_CAP` with that in mind — 200 is roughly 12 full reconciliations.
-
-## 5. Verify the real path (it was never executed — no key existed)
-
-`lib/resolver/llm.ts` is wired correctly but untested against the live API. Check these in order:
+1. Create a free Upstash Redis database (no card required).
+2. Copy the REST URL and token into Vercel → Project `groundtruth` → Settings → Environment Variables:
+   - `UPSTASH_REDIS_REST_URL`
+   - `UPSTASH_REDIS_REST_TOKEN`
+3. Redeploy, then **confirm it is actually being used** — this is the step that matters:
 
 ```bash
-# Cheapest possible first exercise: one dispute, one unit, one call.
-curl -N "http://localhost:3000/api/investigate?dispute=DSP-1009" | grep -o '"provenance":"[a-z]*"'
+curl -N "https://<your-deploy>/api/reconcile?paced=0" | head -c 400
+# The first event must contain: "store":"redis"
+# If it says "store":"memory", Redis is NOT wired and the cap is per-instance.
+```
+
+Do not skip the confirmation. A typo in the URL leaves you with a silent fallback to the exact
+behaviour the cap is meant to prevent.
+
+## 5. Only now, decide about a real `ANTHROPIC_API_KEY`
+
+**My recommendation: leave it off.** Mock mode is honest, clearly labelled (`provenance: mock` on
+every resolution), and the whole app works end to end without it. "Deployed and working" is already
+true.
+
+If you do want live reasoning, in this order:
+
+1. Confirm step 4 shows `"store":"redis"`.
+2. Set the conservative caps: `DAILY_SPEND_CAP_USD=2`, `DAILY_REAL_CALL_CAP=50`.
+3. Add `ANTHROPIC_API_KEY` in the Vercel dashboard. Detection is automatic — **no code change**.
+4. Exercise the cheapest possible path first, one dispute, one unit, one call:
+
+```bash
+curl -N "https://<your-deploy>/api/investigate?dispute=DSP-1009" | grep -o '"reasoningProvenance":"[a-z]*"'
 # expect: "real"
 ```
 
-Then confirm:
-1. The `meta` event says `mode: "real"` and the UI badge reads **live reasoning**.
-2. Each resolution's `reasoningProvenance` is `"real"`, not `"mock"`.
-3. The model returns parseable JSON. If it does not, `realJudgement()` silently falls back to canned
-   reasoning — which is safe, but means you would see `"mock"` and think the key was not detected.
-   That fallback is the single most likely thing to be wrong; add a `console.warn` in the `catch`
-   block in `llm.ts` while you check.
-4. Model id is `claude-sonnet-4-6` (override with `ANTHROPIC_MODEL`). Confirmed current.
-5. Watch the first few responses for quality — the mock reasoning sets a deliberately high bar, and
-   the prompt in `llm.ts` was tuned against it but never against the live model.
+5. Watch for the failure mode that looks like success: if the model returns unparseable JSON,
+   `realJudgement()` silently falls back to canned reasoning, so you would see `"mock"` and conclude
+   the key was not detected. Add a `console.warn` in the `catch` block in `llm.ts` while you check.
+6. Verify spend is being recorded — a second run should show a lower remaining budget in the `meta`
+   event. `recordSpend()` reads `response.usage` and has never been exercised.
+
+**Worst case if you do add one:** someone finds a gap and burns `DAILY_SPEND_CAP_USD`. At $2 that is
+a bounded, uninteresting loss. That is the only version of this worth accepting.
 
 ## 6. Nothing outstanding in the test harness
 
@@ -96,19 +111,30 @@ then `rm -rf .next && npm run build && npm run start`.
 
 `npx tsx scripts/shot.ts` writes screenshots to `shots/` if you want to eyeball it quickly.
 
-## 7. Optional — more fixture cases
+## 7. If something looks like abuse
+
+```bash
+# Instant, no redeploy: Vercel dashboard -> Settings -> Environment Variables
+DISABLE_REAL_MODE=1
+```
+
+Vercel applies env changes to new invocations immediately. Everything keeps working; the reasoning
+step just goes back to canned. Then look at the Upstash keys (`gt:spend:<date>`, `gt:calls:<date>`,
+`gt:ip:*`) to see what happened.
+
+## 8. Optional — more fixture cases
 
 The best use of further time, per the brief. `lib/fixtures/*.json` plus a hand-written entry in
 `lib/resolver/mock-reasoning.ts`. Cases the set does not yet cover: an interchange downgrade, a
 split shipment settling in two payouts, a chargeback reversal landing after representment, and a
 refund issued against the wrong original transaction.
 
-## 8. Optional — persistent rate-limit store
+## 9. Optional — harden the ingestion path further
 
-Swap the in-memory `Map` in `lib/ratelimit.ts` for Upstash Redis (free tier) so the cap holds across
-cold starts. The interface (`checkRateLimit(ip, now) → Decision`) is the only thing that needs to
-stay the same; everything else in the app goes through it. Do not do this before item 4 — the
-in-memory limiter is conservative per instance, so it errs toward less spend, not more.
+Currently good enough for a reviewer hitting it directly. If it ever faces sustained traffic:
+per-IP rate limiting on `/api/ingest` itself (today only the *resolver* is limited, so a bot could
+validate files cheaply in a loop), and a virus/content scan if uploads are ever persisted — they are
+not today, nothing is written to disk or a database.
 
 ---
 
@@ -116,5 +142,6 @@ in-memory limiter is conservative per instance, so it errs toward less spend, no
 
 - **Do not** commit a real key. `.env` and `.env*.local` are gitignored; `.env.example` carries only
   placeholders.
-- **Do not** assume the rate limiter is global until item 8 is done.
+- **Do not** assume the rate limiter is global until step 4 shows `"store":"redis"`.
+- **Do not** add a key and tighten the caps afterwards. Tighten first.
 - **Do not** expect the real reasoning path to have been exercised. It has not been.
