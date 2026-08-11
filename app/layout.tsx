@@ -54,7 +54,7 @@ function SiteHeader() {
   return (
     <header className="sticky top-0 z-40 border-b border-rule bg-paper/90 backdrop-blur-sm">
       <div className="mx-auto flex w-full max-w-shell flex-wrap items-center gap-x-6 gap-y-2 px-5 py-3 sm:px-8">
-        <Link href="/" className="flex items-baseline gap-2">
+        <Link href="/" className="flex min-h-[44px] items-center gap-2">
           <span className="font-display text-2xl leading-none">Groundtruth</span>
           <span className="hidden text-micro uppercase tracking-widest text-muted sm:inline">
             transaction resolver
@@ -63,13 +63,13 @@ function SiteHeader() {
         <nav className="ml-auto flex items-center gap-1 text-sm" aria-label="Primary">
           <Link
             href="/reconcile"
-            className="rounded px-3 py-2 text-muted transition-colors hover:bg-surface hover:text-ink"
+            className="flex min-h-[44px] items-center rounded px-3 text-muted transition-colors hover:bg-surface hover:text-ink"
           >
             Reconcile
           </Link>
           <Link
             href="/investigate"
-            className="rounded px-3 py-2 text-muted transition-colors hover:bg-surface hover:text-ink"
+            className="flex min-h-[44px] items-center rounded px-3 text-muted transition-colors hover:bg-surface hover:text-ink"
           >
             Investigate
           </Link>

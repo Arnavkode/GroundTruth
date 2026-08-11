@@ -225,9 +225,12 @@ export default function InvestigatePage() {
       {state.rebuttal && (
         <section className="mt-10">
           <h3 className="border-b border-rule pb-2 font-display text-xl">Draft representment</h3>
-          <pre className="mt-4 overflow-x-auto whitespace-pre-wrap rounded-lg border border-rule bg-surface p-5 font-mono text-[0.8rem] leading-relaxed">
+          <div
+            className="mt-4 max-w-full rounded-lg border border-rule bg-surface p-5 font-mono text-[0.8rem] leading-relaxed"
+            style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}
+          >
             {state.rebuttal.rebuttal.letter}
-          </pre>
+          </div>
           <div className="mt-5">
             <h4 className="text-micro uppercase tracking-widest text-muted">
               Every claim above traces to these records
