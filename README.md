@@ -141,7 +141,7 @@ npx tsx scripts/test-responsive.ts   # 375 / 768 / 1024 / 1440px
 
 ## Live demo
 
-https://groundtruth-j8gcgnf0r-arnav-guptas-projects-4ac946ea.vercel.app
+https://groundtruth-rnrsv61mn-arnav-guptas-projects-4ac946ea.vercel.app
 
 Currently behind Vercel SSO deployment protection (302 unless you're logged into the team) — one command in `MORNING_CHECKLIST.md` makes it public.
 

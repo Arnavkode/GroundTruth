@@ -14,7 +14,7 @@ team rather than 200. I attempted to disable that (`vercel project protection di
 publicly reachable is not something it will let an unattended agent do. That is the correct call;
 it just means the last step is yours. Exact command is line 1 of `MORNING_CHECKLIST.md`.
 
-**Preview URL:** https://groundtruth-j8gcgnf0r-arnav-guptas-projects-4ac946ea.vercel.app
+**Preview URL:** https://groundtruth-rnrsv61mn-arnav-guptas-projects-4ac946ea.vercel.app
 (clickable and fully working while logged into the Vercel team; 302 → SSO otherwise)
 
 Nothing is half-wired. Every commit left both workflows functional.
