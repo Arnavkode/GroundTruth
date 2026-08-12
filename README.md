@@ -230,9 +230,9 @@ npx tsx scripts/test-responsive.ts   # 375 / 768 / 1024 / 1440px
 
 ## Live demo
 
-https://groundtruth-a0coeh599-arnav-guptas-projects-4ac946ea.vercel.app
+https://groundtruth-jeiu5o4b6-arnav-guptas-projects-4ac946ea.vercel.app
 
-Currently behind Vercel SSO deployment protection (302 unless you're logged into the team) — one command in `MORNING_CHECKLIST.md` makes it public.
+Publicly reachable — SSO deployment protection is off. Serving mock reasoning: the Gemini key is intentionally not on the deployment until Upstash is configured, per `MORNING_CHECKLIST.md` §4.
 
 ## Project structure
 
