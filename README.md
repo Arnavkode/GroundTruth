@@ -75,7 +75,7 @@ Not a vibe. Each deterministic check — amount against the published fee schedu
 - by **evidence coverage**, so a unit with two sources can't score like one with five;
 - hard at **40%** when a transaction isn't uniquely identifiable — two settlements matching one unlabelled bank credit equally well.
 
-Below **60%** the resolver flags instead of resolving. It never claims more than **97%**. The score means *"the stated account of this transaction is correct"* — so a real, unexplained shortfall can be flagged at high confidence, because we're confident about the finding.
+Below **60%** the resolver flags instead of resolving. It never claims more than **97%**. The score answers one question: ***how likely is it that this transaction needs no human?*** That is the exact quantity Fit 1 was trained against, so a proven duplicate capture scores low (37%) — not because the finding is uncertain, but because it definitely needs a person.
 
 The reasoning step can move the score. It cannot override the arithmetic that produced it.
 

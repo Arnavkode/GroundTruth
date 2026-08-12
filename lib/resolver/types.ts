@@ -199,12 +199,40 @@ export interface Resolution {
   /** Set when confidence was capped because the transaction is not uniquely identifiable. */
   identifiabilityNote?: string;
   reasoningProvenance: "mock" | "real";
+  /** How the score was assembled, for the UI to show its working. */
+  scoring: {
+    intercept: number;
+    /** Signed contributions in the order they were applied. */
+    contributions: { label: string; weight: number; kind: "deterministic" | "llm" | "intercept" }[];
+    logit: number;
+    /** Confidence before the coverage and identifiability caps. */
+    uncapped: number;
+    coverageCap: number;
+    ambiguityCap: number | null;
+  };
+  /** Present when the reasoning step ran live: what it said vs what we used. */
+  calibration?: {
+    raw: number;
+    calibrated: number;
+    fitted: boolean;
+    note: string;
+  };
+}
+
+export interface RebuttalFactor {
+  label: string;
+  weight: number;
+  citation: Citation;
 }
 
 export interface Rebuttal {
   disputeId: string;
   transactionRef: string;
   winLikelihood: number;
+  /** The weighted evidence the score was computed from. Never empty. */
+  factors: RebuttalFactor[];
+  /** "authored" when a hand-written case exists, "derived" when computed from the resolution. */
+  basis: "authored" | "derived";
   recommendation: "represent" | "accept-liability" | "represent-with-caution";
   recommendationNote: string;
   letter: string;

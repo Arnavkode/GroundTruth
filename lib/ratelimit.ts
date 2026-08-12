@@ -1,28 +1,43 @@
 import { Redis } from "@upstash/redis";
 
 /**
- * Spend guard for real Anthropic calls.
+ * Quota guard for real Gemini calls.
  *
- * Five independent triggers, all failing the same safe way — when any of them
- * says no, the request is routed to mock reasoning rather than erroring. A user
- * always gets a working resolution; the only thing that degrades is whether the
- * reasoning step was a live model call.
+ * There is deliberately no dollar cap here any more, because there are no
+ * dollars. The provider is a Gemini free-tier key with no billing account
+ * attached: past the free quota a request 429s and stops. That is a stronger
+ * guarantee than any limiter can make on a metered provider — no bug, no abuse
+ * case and no runaway loop can turn into a charge. See DECISIONS.md.
+ *
+ * What is left to protect is the quota itself, so the app never runs up against
+ * Google's ceiling and 429s a legitimate demo request:
  *
  *   1. DISABLE_REAL_MODE=1        kill switch, beats everything
- *   2. No / placeholder API key   nothing to spend with
- *   3. Per IP, per hour           RATE_LIMIT_PER_IP_PER_HOUR (default 3)
- *   4. Global calls per day       DAILY_REAL_CALL_CAP (default 200)
- *   5. Global dollars per day     DAILY_SPEND_CAP_USD (default 5)
+ *   2. No / placeholder API key   nothing to call with
+ *   3. Quota exhausted            a 429 was seen today; stop trying until tomorrow
+ *   4. Per IP, per hour           RATE_LIMIT_PER_IP_PER_HOUR (default 3)
+ *   5. Global calls per day       DAILY_REAL_CALL_CAP (default 300, well under the free RPD)
+ *   6. Per run                    bounds one upload's share of the day
+ *
+ * Every one of them fails the same safe way: the request is served with canned
+ * reasoning rather than erroring.
  *
  * The store is Upstash Redis when UPSTASH_REDIS_REST_URL / _TOKEN are set, and
- * an in-process map otherwise. That distinction matters: Vercel runs many
- * concurrent instances, so an in-memory limiter gives each instance its own
- * budget and the effective public limit is (configured limit × instances).
- * Redis makes the cap global and real.
+ * an in-process map otherwise. Vercel runs many concurrent instances, so an
+ * in-memory limiter gives each its own budget and the effective public limit is
+ * (configured limit × instances). Redis makes the cap global and real.
  */
 
 const HOUR_MS = 3_600_000;
 const DAY_SECONDS = 86_400;
+
+/**
+ * Free-tier limits for the default model, confirmed 2026-08-12. Google's own
+ * rate-limit page defers to the AI Studio dashboard for exact numbers, so these
+ * are the published figures for the Flash-Lite tier and are used only to size
+ * our own caps conservatively — never as something to run up against.
+ */
+export const FREE_TIER = { rpm: 15, rpd: 1000, tpm: 250_000 } as const;
 
 export type Mode = "real" | "mock";
 
@@ -30,9 +45,9 @@ export type DecisionReason =
   | "no-api-key"
   | "forced-mock"
   | "kill-switch"
+  | "quota-exhausted"
   | "ip-limit-exceeded"
   | "daily-cap-reached"
-  | "spend-cap-reached"
   | "upload-cap-reached"
   | "allowed";
 
@@ -43,14 +58,19 @@ export interface Decision {
   message: string;
   ipRemaining: number;
   dailyRemaining: number;
-  spendUsedUsd: number;
-  spendCapUsd: number;
+  callsUsedToday: number;
+  tokensUsedToday: number;
   /** Which store answered — "redis" means the cap is global, not per-instance. */
   store: "redis" | "memory";
-  /** Epoch ms at which the per-IP window frees a slot. Null when not limited. */
+  /** Epoch ms at which the limiting window frees up. Null when not limited. */
   resetAt: number | null;
-  /** Configured limits, echoed so the UI can show "2 of 3 used" without guessing. */
-  limits: { perIpPerHour: number; dailyCalls: number; dailySpendUsd: number; perRun: number };
+  limits: {
+    perIpPerHour: number;
+    dailyCalls: number;
+    perRun: number;
+    freeTierRpd: number;
+    freeTierRpm: number;
+  };
 }
 
 /* ─────────────────────────── configuration ────────────────────────────────*/
@@ -58,42 +78,26 @@ export interface Decision {
 export function perIpLimit(): number {
   return Number(process.env.RATE_LIMIT_PER_IP_PER_HOUR ?? 3);
 }
+
+/** Sized at roughly a third of the free RPD so we never approach Google's own ceiling. */
 export function dailyCap(): number {
-  return Number(process.env.DAILY_REAL_CALL_CAP ?? 50);
+  return Number(process.env.DAILY_REAL_CALL_CAP ?? 300);
 }
-export function dailySpendCapUsd(): number {
-  return Number(process.env.DAILY_SPEND_CAP_USD ?? 2);
-}
+
 export function realModeDisabled(): boolean {
   return process.env.DISABLE_REAL_MODE === "1";
 }
 
 /**
- * Per-1M-token prices for the configured model. Used both to convert reported
- * usage into dollars and to reserve headroom before a call is allowed.
+ * A placeholder key is treated exactly like no key at all. Gemini keys are long
+ * opaque strings; rather than pin a prefix that Google may change, this rejects
+ * anything short or obviously a stand-in.
  */
-export const PRICING = { inputPerMTok: 3, outputPerMTok: 15 } as const;
-
-/**
- * The most one call can plausibly cost: a large bundle in, max_tokens out.
- * A call is only permitted if the remaining budget covers this, so the cap is
- * never overshot by a call that was already in flight when it was checked.
- */
-export const WORST_CASE_CALL_USD = 0.05;
-
-export function usdForUsage(inputTokens: number, outputTokens: number): number {
-  return (
-    (inputTokens / 1_000_000) * PRICING.inputPerMTok +
-    (outputTokens / 1_000_000) * PRICING.outputPerMTok
-  );
-}
-
-/** A placeholder key is treated exactly like no key at all. */
 export function hasRealApiKey(): boolean {
-  const key = process.env.ANTHROPIC_API_KEY?.trim();
+  const key = process.env.GEMINI_API_KEY?.trim();
   if (!key) return false;
-  if (/placeholder|your-key|changeme|xxx/i.test(key)) return false;
-  return key.startsWith("sk-ant-");
+  if (/placeholder|your-key|your_key|changeme|xxx|example|test-key/i.test(key)) return false;
+  return key.length >= 30;
 }
 
 /* ───────────────────────────── the store ──────────────────────────────────*/
@@ -103,13 +107,19 @@ export interface RedisLike {
   zadd(key: string, member: { score: number; member: string }): Promise<unknown>;
   zremrangebyscore(key: string, min: number, max: number): Promise<unknown>;
   zcard(key: string): Promise<number>;
-  zrange(key: string, start: number, stop: number, opts?: { withScores?: boolean }): Promise<(string | number)[]>;
+  zrange(
+    key: string,
+    start: number,
+    stop: number,
+    opts?: { withScores?: boolean },
+  ): Promise<(string | number)[]>;
   zrem(key: string, member: string): Promise<unknown>;
   expire(key: string, seconds: number): Promise<unknown>;
   incr(key: string): Promise<number>;
   decr(key: string): Promise<number>;
   incrbyfloat(key: string, value: number): Promise<number | string>;
   get(key: string): Promise<unknown>;
+  set(key: string, value: string): Promise<unknown>;
 }
 
 export interface RateStore {
@@ -126,8 +136,10 @@ export interface RateStore {
     now: number,
   ): Promise<{ count: number; allowed: boolean; oldest: number | null }>;
   tryCounter(key: string, limit: number): Promise<{ count: number; allowed: boolean }>;
-  getSpend(key: string): Promise<number>;
-  addSpend(key: string, usd: number): Promise<number>;
+  readCounter(key: string): Promise<number>;
+  addTokens(key: string, tokens: number): Promise<number>;
+  getFlag(key: string): Promise<boolean>;
+  setFlag(key: string): Promise<void>;
   reset(): Promise<void>;
 }
 
@@ -136,13 +148,13 @@ export interface RateStore {
 interface MemoryState {
   windows: Map<string, number[]>;
   counters: Map<string, number>;
-  spend: Map<string, number>;
+  flags: Set<string>;
 }
 
 function memoryState(): MemoryState {
   const g = globalThis as Record<string, unknown>;
   if (!g.__gtRateState) {
-    g.__gtRateState = { windows: new Map(), counters: new Map(), spend: new Map() } as MemoryState;
+    g.__gtRateState = { windows: new Map(), counters: new Map(), flags: new Set() } as MemoryState;
   }
   return g.__gtRateState as MemoryState;
 }
@@ -168,20 +180,26 @@ export const memoryStore: RateStore = {
     st.counters.set(key, next);
     return { count: next, allowed: true };
   },
-  async getSpend(key) {
-    return memoryState().spend.get(key) ?? 0;
+  async readCounter(key) {
+    return memoryState().counters.get(key) ?? 0;
   },
-  async addSpend(key, usd) {
+  async addTokens(key, tokens) {
     const st = memoryState();
-    const next = (st.spend.get(key) ?? 0) + usd;
-    st.spend.set(key, next);
+    const next = (st.counters.get(key) ?? 0) + tokens;
+    st.counters.set(key, next);
     return next;
+  },
+  async getFlag(key) {
+    return memoryState().flags.has(key);
+  },
+  async setFlag(key) {
+    memoryState().flags.add(key);
   },
   async reset() {
     const st = memoryState();
     st.windows.clear();
     st.counters.clear();
-    st.spend.clear();
+    st.flags.clear();
   },
 };
 
@@ -199,7 +217,6 @@ export function redisStore(client: RedisLike): RateStore {
       const head = await client.zrange(key, 0, 0, { withScores: true });
       const oldest = head.length > 1 ? Number(head[1]) : null;
       if (count > limit) {
-        // We over-added: take our own entry back out and deny.
         await client.zrem(key, member);
         return { count: count - 1, allowed: false, oldest };
       }
@@ -214,14 +231,21 @@ export function redisStore(client: RedisLike): RateStore {
       }
       return { count, allowed: true };
     },
-    async getSpend(key) {
+    async readCounter(key) {
       const v = await client.get(key);
       return v === null || v === undefined ? 0 : Number(v);
     },
-    async addSpend(key, usd) {
-      const v = await client.incrbyfloat(key, usd);
+    async addTokens(key, tokens) {
+      const v = await client.incrbyfloat(key, tokens);
       await client.expire(key, DAY_SECONDS + 60);
       return Number(v);
+    },
+    async getFlag(key) {
+      return Boolean(await client.get(key));
+    },
+    async setFlag(key) {
+      await client.set(key, "1");
+      await client.expire(key, DAY_SECONDS + 60);
     },
     async reset() {
       /* Redis state is intentionally not resettable from app code. */
@@ -251,13 +275,15 @@ export function activeStore(): RateStore {
 function dayKey(now: number): string {
   return new Date(now).toISOString().slice(0, 10);
 }
+function midnightAfter(now: number): number {
+  return Date.parse(dayKey(now) + "T00:00:00Z") + DAY_SECONDS * 1000;
+}
 
 export interface CheckOptions {
   now?: number;
   /**
    * How many real calls this batch has already made. Bounds one upload's blast
-   * radius independently of the per-IP budget: a 50-row upload cannot spend the
-   * whole day's allowance on its own.
+   * radius independently of the per-IP budget.
    */
   callsThisRun?: number;
   maxCallsPerRun?: number;
@@ -271,52 +297,52 @@ function deny(
   return { ...base, mode: "mock", reason, message };
 }
 
-/**
- * Decide whether this request may make a real API call, reserving a slot if so.
- * Call once per resolver step, immediately before any Anthropic call.
- */
 export async function checkRateLimit(ip: string, opts: CheckOptions = {}): Promise<Decision> {
   const now = opts.now ?? Date.now();
   const store = activeStore();
   const ipMax = perIpLimit();
   const dayMax = dailyCap();
-  const spendCap = dailySpendCapUsd();
   const day = dayKey(now);
 
-  const spendUsed = await store.getSpend(`gt:spend:${day}`);
+  const callsUsedToday = await store.readCounter(`gt:calls:${day}`);
+  const tokensUsedToday = await store.readCounter(`gt:tokens:${day}`);
+
   const base = {
     ipRemaining: 0,
-    dailyRemaining: 0,
-    spendUsedUsd: Number(spendUsed.toFixed(4)),
-    spendCapUsd: spendCap,
+    dailyRemaining: Math.max(0, dayMax - callsUsedToday),
+    callsUsedToday,
+    tokensUsedToday,
     store: store.kind,
     resetAt: null as number | null,
     limits: {
       perIpPerHour: ipMax,
       dailyCalls: dayMax,
-      dailySpendUsd: spendCap,
       perRun: opts.maxCallsPerRun ?? Infinity,
+      freeTierRpd: FREE_TIER.rpd,
+      freeTierRpm: FREE_TIER.rpm,
     },
   };
 
-  // 1. Kill switch — flippable in the Vercel dashboard, no redeploy.
   if (realModeDisabled()) {
     return deny("kill-switch", "DISABLE_REAL_MODE is set — all reasoning is mock.", base);
   }
   if (process.env.FORCE_MOCK_MODE === "1") {
     return deny("forced-mock", "FORCE_MOCK_MODE is set — using canned reasoning.", base);
   }
-
-  // 2. Nothing to spend with.
   if (!hasRealApiKey()) {
+    return deny("no-api-key", "No GEMINI_API_KEY present — reasoning is canned, not live.", base);
+  }
+
+  // A 429 seen earlier today means the free quota is gone. Stop asking.
+  if (await store.getFlag(`gt:quota-exhausted:${day}`)) {
+    base.resetAt = midnightAfter(now);
     return deny(
-      "no-api-key",
-      "No ANTHROPIC_API_KEY present — reasoning is canned, not live.",
+      "quota-exhausted",
+      "The Gemini free-tier quota for today is exhausted — reasoning is canned until it resets.",
       base,
     );
   }
 
-  // 3. Per-upload blast radius.
   const maxPerRun = opts.maxCallsPerRun ?? Infinity;
   if ((opts.callsThisRun ?? 0) >= maxPerRun) {
     return deny(
@@ -326,36 +352,22 @@ export async function checkRateLimit(ip: string, opts: CheckOptions = {}): Promi
     );
   }
 
-  // 4. Dollars before calls: the cap must cover the worst case this call could
-  //    cost, so an in-flight call can never push spend past the ceiling.
-  if (spendUsed + WORST_CASE_CALL_USD > spendCap) {
-    base.resetAt = Date.parse(dayKey(now) + "T00:00:00Z") + DAY_SECONDS * 1000;
-    return deny(
-      "spend-cap-reached",
-      `Daily spend cap of $${spendCap.toFixed(2)} reached ($${spendUsed.toFixed(2)} used) — falling back to mock reasoning.`,
-      base,
-    );
-  }
-
-  // 5. Global daily call count.
   const daily = await store.tryCounter(`gt:calls:${day}`, dayMax);
+  base.callsUsedToday = daily.count;
   base.dailyRemaining = Math.max(0, dayMax - daily.count);
   if (!daily.allowed) {
-    base.resetAt = Date.parse(dayKey(now) + "T00:00:00Z") + DAY_SECONDS * 1000;
+    base.resetAt = midnightAfter(now);
     return deny(
       "daily-cap-reached",
-      `Global daily cap of ${dayMax} real calls reached — falling back to mock reasoning.`,
+      `Global daily cap of ${dayMax} live calls reached — falling back to mock reasoning.`,
       base,
     );
   }
 
-  // 6. Per-IP sliding window.
   const perIp = await store.tryWindow(`gt:ip:${ip}`, ipMax, HOUR_MS, now);
   base.ipRemaining = Math.max(0, ipMax - perIp.count);
   base.resetAt = perIp.oldest !== null ? perIp.oldest + HOUR_MS : null;
   if (!perIp.allowed) {
-    // Hand the global slot back — this request is not going to use it.
-    await store.addSpend(`gt:calls:${day}:refund`, 0);
     return deny(
       "ip-limit-exceeded",
       `Rate limit reached (${ipMax} live runs per hour per IP) — falling back to mock reasoning.`,
@@ -371,18 +383,45 @@ export async function checkRateLimit(ip: string, opts: CheckOptions = {}): Promi
   };
 }
 
-/** Record what a completed real call actually cost. Call after every one. */
-export async function recordSpend(
+/** Record token usage from a completed call. Observability, not a cap. */
+export async function recordUsage(
   inputTokens: number,
   outputTokens: number,
   now: number = Date.now(),
 ): Promise<number> {
-  const usd = usdForUsage(inputTokens, outputTokens);
-  return activeStore().addSpend(`gt:spend:${dayKey(now)}`, usd);
+  return activeStore().addTokens(`gt:tokens:${dayKey(now)}`, inputTokens + outputTokens);
 }
 
-export async function currentSpend(now: number = Date.now()): Promise<number> {
-  return activeStore().getSpend(`gt:spend:${dayKey(now)}`);
+/**
+ * Latch "the free quota is gone" for the rest of the day.
+ *
+ * Deliberately loud: running out of quota should be boring and recoverable, but
+ * an operator reading logs must be able to see that live mode degraded and when.
+ */
+export async function markQuotaExhausted(
+  detail: string,
+  now: number = Date.now(),
+): Promise<void> {
+  const day = dayKey(now);
+  await activeStore().setFlag(`gt:quota-exhausted:${day}`);
+  console.error(
+    `[groundtruth] GEMINI FREE QUOTA EXHAUSTED on ${day}. Live reasoning is disabled until ` +
+      `${new Date(midnightAfter(now)).toISOString()}; every request is now served with canned ` +
+      `reasoning. This is expected behaviour, not an outage. Detail: ${detail}`,
+  );
+}
+
+export async function isQuotaExhausted(now: number = Date.now()): Promise<boolean> {
+  return activeStore().getFlag(`gt:quota-exhausted:${dayKey(now)}`);
+}
+
+export async function currentUsage(now: number = Date.now()) {
+  const store = activeStore();
+  const day = dayKey(now);
+  return {
+    calls: await store.readCounter(`gt:calls:${day}`),
+    tokens: await store.readCounter(`gt:tokens:${day}`),
+  };
 }
 
 /** Test-only: wipe the in-memory store. */

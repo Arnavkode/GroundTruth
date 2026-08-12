@@ -114,7 +114,9 @@ async function main() {
   const dup = resolutions.find((r) => r.transactionRef === "TXN-1006");
   console.log(`  TXN-1006 (duplicate): ${dup?.status} @ ${Math.round((dup?.confidence ?? 0) * 100)}%`);
   assert("duplicate capture is flagged", dup?.status === "flagged");
-  assert("duplicate finding is high-confidence", (dup?.confidence ?? 0) > 0.85);
+  // Post-Fit-1 the score answers "how likely is it that this needs no human",
+  // so a proven duplicate is correctly LOW, not high. See DECISIONS.md.
+  assert("duplicate scores low — it definitely needs a human", (dup?.confidence ?? 1) < 0.6);
   assert(
     "duplicate is caught despite the bank reconciling to zero",
     dup?.amounts.deltaCents === 0,

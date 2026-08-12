@@ -1,6 +1,13 @@
 import { usd } from "../fixtures";
 import { sigmoid } from "./checks";
-import type { Citation, DisputeRecord, Rebuttal, Resolution } from "./types";
+import type {
+  Citation,
+  DisputeRecord,
+  EvidenceBundle,
+  Rebuttal,
+  RebuttalFactor,
+  Resolution,
+} from "./types";
 
 /**
  * Second-stage agent: turns a resolved transaction into a representment
@@ -19,11 +26,7 @@ const REASON_BASELINE: Record<string, number> = {
   "12.6.1": 0.1, // duplicate processing — near-unwinnable if true
 };
 
-interface Factor {
-  label: string;
-  weight: number;
-  citation: Citation;
-}
+type Factor = RebuttalFactor;
 
 interface CannedRebuttal {
   factors: Factor[];
@@ -292,39 +295,237 @@ Actions:
   },
 };
 
-export function buildRebuttal(dispute: DisputeRecord, resolution: Resolution): Rebuttal {
+/**
+ * Fallback for any dispute without a hand-authored case — which is every dispute
+ * in an uploaded dataset. Factors are derived from evidence the resolver has
+ * already read, each carrying the record it came from, so a computed rebuttal is
+ * as auditable as a written one. It is never an empty list.
+ */
+function deriveFactors(
+  dispute: DisputeRecord,
+  resolution: Resolution,
+  bundle?: EvidenceBundle,
+): Factor[] {
+  const factors: Factor[] = [];
+  const push = (label: string, weight: number, citation: Citation) =>
+    factors.push({ label, weight, citation });
+
+  const ship = bundle?.shipment;
+  if (ship?.deliveredAt && ship.deliveryMatchesOrderAddress === true) {
+    push("Carrier delivered to the address on the order", 1.2, {
+      source: "shipment",
+      ref: ship.tracking,
+      detail: `${ship.carrier} delivered ${ship.deliveredAt.slice(0, 10)} to ZIP ${ship.deliveryPostal ?? "n/a"}`,
+    });
+  } else if (ship?.deliveredAt && ship.deliveryMatchesOrderAddress === false) {
+    push("Carrier delivered to a different address than the order", -0.9, {
+      source: "shipment",
+      ref: ship.tracking,
+      detail: `Delivered to ZIP ${ship.deliveryPostal ?? "unknown"}, not the order address`,
+    });
+  } else if (ship && !ship.deliveredAt) {
+    push("No delivery has been recorded", -0.7, {
+      source: "shipment",
+      ref: ship.tracking,
+      detail: `Status ${ship.status}; no delivery scan`,
+    });
+  } else if (!ship) {
+    push("No shipment record exists for this order", -0.8, {
+      source: "order",
+      ref: bundle?.order?.orderId ?? dispute.orderId,
+      detail: "Nothing in the shipment feed references this order",
+    });
+  }
+
+  if (ship?.signature) {
+    push("Delivery signature captured", 0.8, {
+      source: "shipment",
+      ref: ship.tracking,
+      detail: `Signed "${ship.signature}"`,
+    });
+  } else if (ship?.deliveredAt) {
+    push("Delivered without a signature", -0.3, {
+      source: "shipment",
+      ref: ship.tracking,
+      detail: "No signature on the delivery scan",
+    });
+  }
+
+  const order = bundle?.order;
+  if (order) {
+    const avsTable: Record<string, [string, number]> = {
+      Y: ["AVS full match on street and postcode", 0.4],
+      Z: ["AVS partial match — postcode only", -0.15],
+      N: ["AVS did not match", -0.8],
+      U: ["AVS not available", 0],
+    };
+    const [avsLabel, avsWeight] = avsTable[order.avsResult] ?? avsTable.U;
+    if (avsWeight !== 0) {
+      push(avsLabel, avsWeight, {
+        source: "order",
+        ref: order.orderId,
+        detail: `AVS ${order.avsResult}`,
+      });
+    }
+
+    const cvvTable: Record<string, [string, number]> = {
+      M: ["CVV match", 0.3],
+      N: ["CVV did not match", -0.6],
+      U: ["CVV not collected", -0.35],
+    };
+    const [cvvLabel, cvvWeight] = cvvTable[order.cvvResult] ?? cvvTable.U;
+    push(cvvLabel, cvvWeight, {
+      source: "order",
+      ref: order.orderId,
+      detail: `CVV ${order.cvvResult}`,
+    });
+
+    if (order.note && /prior|previous|renewal|consent/i.test(order.note)) {
+      push("Account history supports the transaction", 0.35, {
+        source: "order",
+        ref: order.orderId,
+        detail: order.note.slice(0, 160),
+      });
+    }
+  }
+
+  if (bundle?.chat?.outcome === "escalated_to_dispute") {
+    push("Support contact escalated rather than resolved", -0.4, {
+      source: "chat",
+      ref: bundle.chat.chatId,
+      detail: `${bundle.chat.transcript.length} messages, outcome: escalated to dispute`,
+    });
+  }
+
+  // The resolver's own verdict is evidence about whether we can defend at all.
+  const duplicate = resolution.checks.find(
+    (c) => c.id === "duplicate-capture" && c.outcome === "conflict",
+  );
+  if (duplicate) {
+    push("Our own ledger shows a duplicate capture", -2.0, {
+      source: "settlement",
+      ref: duplicate.citations[0]?.ref ?? resolution.transactionRef,
+      detail: duplicate.detail.slice(0, 160),
+    });
+  } else if (resolution.status === "flagged") {
+    push("The transaction itself does not reconcile", -0.8, {
+      source: "settlement",
+      ref: resolution.transactionRef,
+      detail: resolution.headline,
+    });
+  }
+
+  // How well evidenced the reconstruction is, centred on the flag threshold.
+  const confidenceLever = Number(((resolution.confidence - 0.6) * 0.9).toFixed(2));
+  if (Math.abs(confidenceLever) >= 0.05) {
+    push(
+      confidenceLever > 0
+        ? "The transaction is well evidenced across sources"
+        : "The transaction is thinly evidenced",
+      confidenceLever,
+      {
+        source: "settlement",
+        ref: resolution.transactionRef,
+        detail: `Resolver confidence ${Math.round(resolution.confidence * 100)}% against a 60% threshold`,
+      },
+    );
+  }
+
+  return factors;
+}
+
+function deriveLetter(
+  dispute: DisputeRecord,
+  resolution: Resolution,
+  factors: Factor[],
+  winPct: number,
+): string {
+  const forUs = factors.filter((f) => f.weight > 0).sort((a, b) => b.weight - a.weight);
+  const against = factors.filter((f) => f.weight < 0).sort((a, b) => a.weight - b.weight);
+  const represent = winPct >= 35;
+
+  const head = represent
+    ? `Re: Chargeback ${dispute.disputeId} — ${dispute.network} reason ${dispute.reasonCode}, ${dispute.reasonText}
+Transaction ${dispute.transactionRef}, ${usd(dispute.amountCents)}, filed ${dispute.filedAt.slice(0, 10)}
+Estimated likelihood of a successful representment: ${winPct}%
+
+We are contesting this chargeback. The evidence below is drawn from our transaction records.`
+    : `INTERNAL RECOMMENDATION — DO NOT SUBMIT AS A REPRESENTMENT
+Re: Chargeback ${dispute.disputeId} — ${dispute.network} reason ${dispute.reasonCode}, ${dispute.reasonText}
+Transaction ${dispute.transactionRef}, ${usd(dispute.amountCents)}
+Estimated likelihood of a successful representment: ${winPct}%
+
+Recommendation: accept liability. The record does not support a defence, and the points below are what an issuer would weigh against us.`;
+
+  const forBlock = forUs.length
+    ? "\n\nEvidence supporting the transaction:\n" +
+      forUs
+        .map((f, i) => `${i + 1}. ${f.label}.\n   ${f.citation.ref} — ${f.citation.detail}`)
+        .join("\n")
+    : "\n\nWe hold no affirmative evidence supporting this transaction.";
+
+  const againstBlock = against.length
+    ? "\n\nWeighing against us, disclosed because the issuer will find it regardless:\n" +
+      against
+        .map((f, i) => `${i + 1}. ${f.label}.\n   ${f.citation.ref} — ${f.citation.detail}`)
+        .join("\n")
+    : "";
+
+  const tail =
+    `\n\nResolver assessment of the underlying transaction: ${resolution.headline}` +
+    `\n\nThis letter was assembled from the evidence records listed above. Every line traces to a` +
+    ` record in the transaction file; no claim is made that is not supported by one.`;
+
+  return head + forBlock + againstBlock + tail;
+}
+
+export function buildRebuttal(
+  dispute: DisputeRecord,
+  resolution: Resolution,
+  bundle?: EvidenceBundle,
+): Rebuttal {
   const canned = REBUTTALS[dispute.disputeId];
   const baseline = REASON_BASELINE[dispute.reasonCode] ?? 0.25;
   const baseLogit = Math.log(baseline / (1 - baseline));
 
-  const factors = canned?.factors ?? [];
+  const authored = Boolean(canned);
+  const factors: Factor[] = authored ? canned!.factors : deriveFactors(dispute, resolution, bundle);
+
   const logit = baseLogit + factors.reduce((s, f) => s + f.weight, 0);
-  const winLikelihood = Math.round(
-    Math.max(MIN_WIN, Math.min(MAX_WIN, sigmoid(logit))) * 100,
-  );
+  const winLikelihood = Math.round(Math.max(MIN_WIN, Math.min(MAX_WIN, sigmoid(logit))) * 100);
 
   const recommendation =
-    winLikelihood >= 60 ? "represent" : winLikelihood >= 35 ? "represent-with-caution" : "accept-liability";
+    winLikelihood >= 60
+      ? "represent"
+      : winLikelihood >= 35
+        ? "represent-with-caution"
+        : "accept-liability";
+
+  const derivedNote =
+    `No hand-authored case exists for ${dispute.disputeId}, so this is computed from the ` +
+    `${factors.length} evidence factors below, starting from the published ${dispute.reasonCode} ` +
+    `merchant win rate of ${Math.round(baseline * 100)}%. ` +
+    (recommendation === "accept-liability"
+      ? "The evidence does not support a defence."
+      : recommendation === "represent-with-caution"
+        ? "Genuinely marginal — weigh the representment fee against the amount at stake."
+        : "The file supports a representment.");
 
   return {
     disputeId: dispute.disputeId,
     transactionRef: dispute.transactionRef,
     winLikelihood: winLikelihood / 100,
+    factors,
+    basis: authored ? "authored" : "derived",
     recommendation,
-    recommendationNote:
-      canned?.note(winLikelihood) ??
-      `No hand-authored rebuttal exists for ${dispute.disputeId}; likelihood is the ${dispute.reasonCode} baseline only.`,
-    letter:
-      canned?.letter(winLikelihood) ??
-      `No draft available for ${dispute.disputeId}. Resolver verdict: ${resolution.headline}`,
+    recommendationNote: authored ? canned!.note(winLikelihood) : derivedNote,
+    letter: authored
+      ? canned!.letter(winLikelihood)
+      : deriveLetter(dispute, resolution, factors, winLikelihood),
     evidenceCited: factors.map((f) => f.citation),
-    provenance: "mock",
+    // Mirrors how the resolution itself was reasoned rather than being hardcoded.
+    provenance: resolution.reasoningProvenance,
   };
-}
-
-/** The weighted factors behind the score, for display. */
-export function rebuttalFactors(disputeId: string): Factor[] {
-  return REBUTTALS[disputeId]?.factors ?? [];
 }
 
 export { usd };

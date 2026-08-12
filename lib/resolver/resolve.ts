@@ -1,5 +1,6 @@
 import { expectedNetCents, observedNetCents, usd } from "../fixtures";
 import { BASE_LOGIT, MAX_CONFIDENCE, MIN_CONFIDENCE, runDeterministicChecks, sigmoid } from "./checks";
+import { calibrateWeight } from "./calibration";
 import { mockJudgement } from "./mock-reasoning";
 import type {
   Check,
@@ -131,12 +132,19 @@ export function scoreAndClassify(
   bundle: EvidenceBundle,
   checks: Check[],
   judgement: LlmJudgement,
-): { status: ResolvedStatus; confidence: number; identifiabilityNote?: string } {
-  const logit =
-    BASE_LOGIT + checks.reduce((sum, c) => sum + c.weight, 0) + judgement.weight;
+  llmWeight: number = judgement.weight,
+): {
+  status: ResolvedStatus;
+  confidence: number;
+  identifiabilityNote?: string;
+  scoring: Resolution["scoring"];
+} {
+  const logit = BASE_LOGIT + checks.reduce((sum, c) => sum + c.weight, 0) + llmWeight;
+  const uncapped = sigmoid(logit);
 
-  let confidence = sigmoid(logit);
-  confidence = Math.min(confidence, coverageCap(bundle));
+  let confidence = uncapped;
+  const cap = coverageCap(bundle);
+  confidence = Math.min(confidence, cap);
 
   let identifiabilityNote: string | undefined;
   if (bundle.contestedBankLines.length > 0) {
@@ -147,6 +155,23 @@ export function scoreAndClassify(
   }
 
   confidence = Math.max(MIN_CONFIDENCE, Math.min(MAX_CONFIDENCE, confidence));
+
+  const scoring: Resolution["scoring"] = {
+    intercept: Number(BASE_LOGIT.toFixed(4)),
+    contributions: [
+      { label: "Prior (fitted intercept)", weight: Number(BASE_LOGIT.toFixed(4)), kind: "intercept" as const },
+      ...checks.map((c) => ({
+        label: c.label,
+        weight: Number(c.weight.toFixed(4)),
+        kind: "deterministic" as const,
+      })),
+      { label: "Evidence reading", weight: Number(llmWeight.toFixed(4)), kind: "llm" as const },
+    ],
+    logit: Number(logit.toFixed(4)),
+    uncapped: Math.round(uncapped * 100) / 100,
+    coverageCap: Math.round(cap * 100) / 100,
+    ambiguityCap: bundle.contestedBankLines.length > 0 ? AMBIGUITY_CAP : null,
+  };
 
   const hardConflict = checks.some(
     (c) => c.outcome === "conflict" && c.weight <= HARD_CONFLICT_WEIGHT,
@@ -162,12 +187,28 @@ export function scoreAndClassify(
     status = "matched";
   }
 
-  return { status, confidence: Math.round(confidence * 100) / 100, identifiabilityNote };
+  return { status, confidence: Math.round(confidence * 100) / 100, identifiabilityNote, scoring };
 }
 
-/** Resolve one transaction. `judgement` is injected so mock and real share this path. */
-export function assembleResolution(bundle: EvidenceBundle, judgement: LlmJudgement): Resolution {
+/**
+ * Resolve one transaction. `judgement` is injected so mock and real share this
+ * path. `rawWeight` is the model's own stated figure before calibration — only
+ * present in real mode, and kept so the UI can show both numbers.
+ */
+export function assembleResolution(
+  bundle: EvidenceBundle,
+  judgement: LlmJudgement,
+  rawWeight?: number,
+): Resolution {
   const checks = runDeterministicChecks(bundle);
+
+  // A live model's stated weight is a claim about itself. Fit 2 turns it into a
+  // measurement; until that fit exists the raw value passes through, labelled.
+  const calibration =
+    judgement.provenance === "real"
+      ? calibrateWeight(rawWeight ?? judgement.weight)
+      : undefined;
+  const effectiveLlmWeight = calibration ? calibration.calibrated : judgement.weight;
   const llmCheck: Check = {
     id: "llm-reasoning",
     label: "Evidence reading",
@@ -182,11 +223,16 @@ export function assembleResolution(bundle: EvidenceBundle, judgement: LlmJudgeme
             : "missing",
     detail: judgement.rationale,
     citations: judgement.citations,
-    weight: judgement.weight,
+    weight: effectiveLlmWeight,
   };
   const allChecks = [...checks, llmCheck];
 
-  const { status, confidence, identifiabilityNote } = scoreAndClassify(bundle, checks, judgement);
+  const { status, confidence, identifiabilityNote, scoring } = scoreAndClassify(
+    bundle,
+    checks,
+    judgement,
+    effectiveLlmWeight,
+  );
 
   const expected = expectedNetCents(bundle.settlements);
   const observed = observedNetCents(bundle.bankLines);
@@ -207,6 +253,8 @@ export function assembleResolution(bundle: EvidenceBundle, judgement: LlmJudgeme
     },
     identifiabilityNote,
     reasoningProvenance: judgement.provenance,
+    scoring,
+    calibration,
   };
 }
 

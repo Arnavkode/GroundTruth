@@ -5,7 +5,7 @@ import Link from "next/link";
 import { BackdropField } from "@/components/decor";
 import { NavLinkIndicator, PageTransition } from "@/components/PageTransition";
 import { ThemeToggle, themeBootScript } from "@/components/theme";
-import { dailyCap, dailySpendCapUsd, perIpLimit } from "@/lib/ratelimit";
+import { dailyCap, FREE_TIER, perIpLimit } from "@/lib/ratelimit";
 import { LIMITS } from "@/lib/ingest";
 import "./globals.css";
 
@@ -107,7 +107,8 @@ function SiteFooter() {
             </li>
             <li>
               Reasoning runs in mock mode unless a real{" "}
-              <code className="font-mono">ANTHROPIC_API_KEY</code> is present.
+              <code className="font-mono">GEMINI_API_KEY</code> is present. The free tier has no
+              billing account behind it, so there is no spend to run away with.
             </li>
           </ul>
         </div>
@@ -117,7 +118,7 @@ function SiteFooter() {
             {[
               ["Per IP, per hour", `${perIpLimit()} live runs`],
               ["Global daily cap", `${dailyCap()} live calls`],
-              ["Daily spend cap", `$${dailySpendCapUsd().toFixed(2)}`],
+              ["Provider free tier", `${FREE_TIER.rpd} calls/day`],
               ["Live calls per run", `${LIMITS.MAX_REAL_CALLS_PER_UPLOAD} max`],
               ["Tokens per call", "1,200 max"],
               ["On exhaustion", "falls back to mock"],

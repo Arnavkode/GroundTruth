@@ -6,7 +6,7 @@
  *
  *   npm run test:ingest
  */
-delete process.env.ANTHROPIC_API_KEY;
+delete process.env.GEMINI_API_KEY;
 
 import { ingest, LIMITS, sanitizeText, type UploadFile } from "../lib/ingest";
 import { buildEvidenceBundles } from "../lib/fixtures";

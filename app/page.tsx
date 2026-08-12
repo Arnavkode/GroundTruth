@@ -8,14 +8,14 @@ const HARD_CASES = [
     tone: "flagged",
     title: "Duplicate capture",
     body: "Reconciles perfectly against the bank — $145.04 in, $145.04 settled. Only visible by comparing captures to the order total.",
-    score: "92%",
+    score: "37%",
   },
   {
     ref: "TXN-1007A/B",
     tone: "flagged",
     title: "Two identical claimants",
     body: "One unlabelled credit, two customers who bought the same bench 13 minutes apart. Refused rather than coin-flipped.",
-    score: "40%",
+    score: "17%",
   },
   {
     ref: "TXN-1003",
@@ -29,21 +29,21 @@ const HARD_CASES = [
     tone: "explained",
     title: "Currency rounding",
     body: "Two cents on a EUR→USD settlement. Inside a 13-cent tolerance, and exactly what independent rounding produces.",
-    score: "92%",
+    score: "85%",
   },
   {
     ref: "TXN-1012",
     tone: "flagged",
     title: "Unexplained shortfall",
     body: "$12.40 gone. Not the fee, not FX, not a refund, not timing — each ruled out by a record rather than merely doubted.",
-    score: "84%",
+    score: "26%",
   },
   {
     ref: "BNK-009",
     tone: "flagged",
     title: "Orphan bank debit",
     body: "$31.20 left the account and no internal system recorded why. Left unattributed on purpose.",
-    score: "20%",
+    score: "5%",
   },
 ];
 

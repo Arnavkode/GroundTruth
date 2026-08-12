@@ -1,13 +1,14 @@
 import { expectedFeeCents, expectedNetCents, observedNetCents, usd } from "../fixtures";
+import { FIT1, fittedWeight } from "./fitted";
 import type { Check, EvidenceBundle } from "./types";
 
 const DAY_MS = 86_400_000;
 
 /**
- * Every unit starts here: the sources parsed and the records are internally
- * well-formed. It is deliberately small — it should not carry a resolution.
+ * The fitted intercept: the prior log-odds that a unit needs no human, before
+ * any check has spoken. Was a hand-picked 0.4; now comes from Fit 1.
  */
-export const BASE_LOGIT = 0.4;
+export const BASE_LOGIT = FIT1.intercept;
 
 /** Confidence is never claimed above this. Payments evidence is never certain. */
 export const MAX_CONFIDENCE = 0.97;
@@ -268,7 +269,7 @@ export function runDeterministicChecks(bundle: EvidenceBundle): Check[] {
     const want = expectedFeeCents(p.grossCents, bundle.feeSchedule);
     if (p.feeCents === want) continue;
     checks.push({
-      id: `fee-${p.settlementId}`,
+      id: "fee-schedule",
       label: "Fee schedule",
       kind: "deterministic",
       outcome: "conflict",
@@ -279,7 +280,7 @@ export function runDeterministicChecks(bundle: EvidenceBundle): Check[] {
       weight: -1.0,
     });
   }
-  if (payments.length > 0 && !checks.some((c) => c.id.startsWith("fee-"))) {
+  if (payments.length > 0 && !checks.some((c) => c.id === "fee-schedule")) {
     checks.push({
       id: "fee-schedule",
       label: "Fee schedule",
@@ -443,5 +444,16 @@ export function runDeterministicChecks(bundle: EvidenceBundle): Check[] {
     });
   }
 
-  return checks;
+  /**
+   * Every weight above is the hand-picked value the app shipped with, kept as a
+   * documented fallback. Where Fit 1 has a coefficient for that check/outcome —
+   * which is all of them the fit ever saw — the fitted value wins. The
+   * substitution happens here, once, so no check has to know it is being fitted.
+   */
+  return checks.map((c) => ({ ...c, weight: fittedWeight(c.id, c.outcome) ?? c.weight }));
+}
+
+/** The hand-picked weight a check would have used without Fit 1. For the UI. */
+export function unfittedWeight(check: Check): number | undefined {
+  return fittedWeight(check.id, check.outcome) === undefined ? undefined : check.weight;
 }

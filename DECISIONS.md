@@ -19,9 +19,10 @@ Every unsupervised call made during the build, and why.
 - **Log-odds weights instead of pass/fail checks.** A confidence score has to come from somewhere
   defensible. Each check contributes a signed weight; confidence is the sigmoid of the sum. This
   makes the number auditable — you can point at which check moved it and by how much.
-- **Confidence means "the stated account of this transaction is correct"**, not "this transaction is
-  fine". That is why TXN-1012 is flagged at 84%: we are confident the $12.40 shortfall is real and
-  unexplained. Stated in the UI so the number is not misread.
+- **Confidence originally meant "the stated account of this transaction is correct"** — which is why
+  TXN-1012 was flagged at 84%. **Superseded by Fit 1**, which retargeted the score onto
+  *P(this needs no human)*. See the addendum below; the buckets did not move but the numbers now mean
+  something different, and more consistent.
 - **Two hard caps on top of the score.** A *coverage cap* (0.80 + 0.04 × sources present) stops the
   resolver being maximally confident on partial evidence. An *identifiability cap* of 40% applies
   when a bank line has more than one equally good claimant. Without the second cap, TXN-1007A/B

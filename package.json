@@ -11,10 +11,13 @@
     "test:e2e": "tsx scripts/test-e2e.ts",
     "verify": "npm run build && npm run resolver && npm run test:guardrails && npm run test:ingest",
     "test:guardrails": "tsx scripts/test-guardrails.ts",
-    "test:ingest": "tsx scripts/test-ingest.ts"
+    "test:ingest": "tsx scripts/test-ingest.ts",
+    "fit:weights": "tsx scripts/fit-weights.ts",
+    "fit:calibrate": "tsx scripts/fit-calibration.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.68.0",
+    "@google/genai": "^2.16.0",
     "@upstash/redis": "^1.38.2",
     "geist": "^1.7.2",
     "next": "^14.2.35",

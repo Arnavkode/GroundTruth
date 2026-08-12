@@ -1,12 +1,18 @@
 import { buildEvidenceBundles, FIXTURE_DATASET, getBundle, usd } from "./fixtures";
 import { LIMITS } from "./ingest";
 import { runDeterministicChecks } from "./resolver/checks";
-import { realJudgement } from "./resolver/llm";
+import { QuotaExhaustedError, realJudgement } from "./resolver/llm";
 import { mockJudgement } from "./resolver/mock-reasoning";
-import { buildRebuttal, rebuttalFactors } from "./resolver/rebuttal";
+import { buildRebuttal } from "./resolver/rebuttal";
 import { assembleResolution } from "./resolver/resolve";
 import type { EvidenceBundle, EvidenceDataset, Resolution } from "./resolver/types";
-import { checkRateLimit, clientIp, recordSpend, type Decision } from "./ratelimit";
+import {
+  checkRateLimit,
+  clientIp,
+  markQuotaExhausted,
+  recordUsage,
+  type Decision,
+} from "./ratelimit";
 import { disputes } from "./fixtures";
 
 /** Mock steps are paced like real ones so the demo feels identical either way. */
@@ -36,7 +42,7 @@ export type StreamEvent =
   | { type: "reasoning"; ref: string; question: string }
   | { type: "resolution"; resolution: Resolution }
   | { type: "summary"; matched: number; explained: number; flagged: number; total: number }
-  | { type: "rebuttal"; rebuttal: ReturnType<typeof buildRebuttal>; factors: ReturnType<typeof rebuttalFactors> }
+  | { type: "rebuttal"; rebuttal: ReturnType<typeof buildRebuttal>; factors: ReturnType<typeof buildRebuttal>["factors"] }
   | { type: "error"; message: string }
   | { type: "done" };
 
@@ -47,8 +53,8 @@ export interface BudgetSnapshot {
   message: string;
   ipRemaining: number;
   dailyRemaining: number;
-  spendUsedUsd: number;
-  spendCapUsd: number;
+  callsUsedToday: number;
+  tokensUsedToday: number;
   store: "redis" | "memory";
   resetAt: number | null;
   limits: Decision["limits"];
@@ -64,8 +70,8 @@ function snapshot(d: Decision, runUsed: number, runMax: number): BudgetSnapshot 
     message: d.message,
     ipRemaining: d.ipRemaining,
     dailyRemaining: d.dailyRemaining,
-    spendUsedUsd: d.spendUsedUsd,
-    spendCapUsd: d.spendCapUsd,
+    callsUsedToday: d.callsUsedToday,
+    tokensUsedToday: d.tokensUsedToday,
     store: d.store,
     resetAt: d.resetAt,
     limits: d.limits,
@@ -174,14 +180,31 @@ async function resolveOne(
   budget.latest = decision;
 
   let judgement;
+  let rawWeight: number | undefined;
   if (decision.mode === "real") {
     budget.callsUsed += 1;
     try {
       const result = await realJudgement(b, checks);
       judgement = result.judgement;
-      await recordSpend(result.usage.inputTokens, result.usage.outputTokens);
-    } catch {
-      // Never let a live-API failure break the run.
+      rawWeight = result.rawWeight;
+      await recordUsage(result.usage.inputTokens, result.usage.outputTokens);
+    } catch (err) {
+      // Never let a live-API failure break the run. A quota 429 additionally
+      // latches for the day so the rest of the batch stops trying.
+      if (err instanceof QuotaExhaustedError) {
+        await markQuotaExhausted(err.message);
+        send({
+          type: "limit",
+          budget: snapshot(
+            await checkRateLimit(budget.ip, {
+              callsThisRun: budget.callsUsed,
+              maxCallsPerRun: budget.maxCalls,
+            }),
+            budget.callsUsed,
+            budget.maxCalls,
+          ),
+        });
+      }
       judgement = mockJudgement(b, checks);
     }
   } else {
@@ -189,7 +212,7 @@ async function resolveOne(
     judgement = mockJudgement(b, checks);
   }
 
-  const resolution = assembleResolution(b, judgement);
+  const resolution = assembleResolution(b, judgement, rawWeight);
   send({ type: "resolution", resolution });
   return resolution;
 }
@@ -322,11 +345,8 @@ export function investigateStream(
         const resolution = await resolveOne(b, budget, send, paced, PACE_SINGLE);
 
         if (paced) await sleep(PACE_SINGLE.reason);
-        send({
-          type: "rebuttal",
-          rebuttal: buildRebuttal(dispute, resolution),
-          factors: rebuttalFactors(dispute.disputeId),
-        });
+        const rebuttal = buildRebuttal(dispute, resolution, b);
+        send({ type: "rebuttal", rebuttal, factors: rebuttal.factors });
         send({ type: "done" });
       } catch (err) {
         send({ type: "error", message: err instanceof Error ? err.message : "unknown error" });

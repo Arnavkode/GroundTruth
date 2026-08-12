@@ -27,13 +27,13 @@ const REASON_COPY: Record<
     title: "Daily call cap reached",
     tone: "stop",
     body: (b) =>
-      `This deployment allows ${b.limits.dailyCalls} live calls a day across all traffic, and they are spent. Resolution quality is unaffected; the reasoning step is canned until the cap resets.`,
+      `This deployment allows ${b.limits.dailyCalls} live calls a day across all traffic — deliberately a fraction of the provider's ${b.limits.freeTierRpd}/day free allowance, so we never run up against their ceiling. Resolution quality is unaffected; the reasoning step is canned until the cap resets.`,
   },
-  "spend-cap-reached": {
-    title: "Daily spend cap reached",
+  "quota-exhausted": {
+    title: "Free-tier quota exhausted for today",
     tone: "stop",
     body: (b) =>
-      `Live reasoning is capped at $${b.limits.dailySpendUsd.toFixed(2)} a day and $${b.spendUsedUsd.toFixed(2)} has been used. The app falls back rather than billing past the ceiling.`,
+      `The provider returned a quota error, so live reasoning is off until the daily quota resets. There is no billing account behind this key — past the free quota the request simply stops, which is the point. ${b.callsUsedToday} live calls were made today.`,
   },
   "upload-cap-reached": {
     title: "Live-call limit reached for this run",
@@ -51,7 +51,7 @@ const REASON_COPY: Record<
     title: "Running in mock mode",
     tone: "neutral",
     body: () =>
-      "No Anthropic API key is configured, so the reasoning step is served from hand-written per-case analysis. Every check, score and bucket you see is computed live from the data either way.",
+      "No Gemini API key is configured, so the reasoning step is served from hand-written per-case analysis. Every check, score and bucket you see is computed from the data either way — those come from the fitted model, not from a language model.",
   },
   "forced-mock": {
     title: "Mock mode forced",
@@ -125,9 +125,12 @@ export function BudgetNotice({ budget }: { budget: BudgetSnapshot | null }) {
   if (!copy) return null;
 
   const tone = TONE[copy.tone];
-  const isLimit = ["ip-limit-exceeded", "daily-cap-reached", "spend-cap-reached", "upload-cap-reached"].includes(
-    budget.reason,
-  );
+  const isLimit = [
+    "ip-limit-exceeded",
+    "daily-cap-reached",
+    "quota-exhausted",
+    "upload-cap-reached",
+  ].includes(budget.reason);
 
   return (
     <section
@@ -167,9 +170,9 @@ export function BudgetNotice({ budget }: { budget: BudgetSnapshot | null }) {
           spent={budget.dailyRemaining === 0}
         />
         <Cell
-          label="spend today"
-          value={`$${budget.spendUsedUsd.toFixed(2)} / $${budget.limits.dailySpendUsd.toFixed(2)}`}
-          spent={budget.spendUsedUsd >= budget.limits.dailySpendUsd}
+          label="tokens today"
+          value={budget.tokensUsedToday.toLocaleString("en-US")}
+          spent={false}
         />
         <Cell
           label="this run"
