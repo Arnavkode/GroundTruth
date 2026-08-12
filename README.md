@@ -70,7 +70,7 @@ Every resolver run streams its reasoning step by step to the UI as it happens �
 
 ### What the confidence score actually is
 
-Not a vibe. Each deterministic check — amount against the published fee schedule, posting window in *business* days, FX rounding tolerance, ID linkage, captures against the order total — contributes a signed log-odds weight. The reasoning step contributes one more. Confidence is the sigmoid of the sum, then capped twice:
+Not a vibe, and not hand-tuned. Each deterministic check — amount against the published fee schedule, posting window in *business* days, FX rounding tolerance, ID linkage, captures against the order total — contributes a signed log-odds weight **fitted by logistic regression over 1,500 synthetic examples**, not chosen by feel. The reasoning step contributes one more. Confidence is the sigmoid of the sum, then capped twice:
 
 - by **evidence coverage**, so a unit with two sources can't score like one with five;
 - hard at **40%** when a transaction isn't uniquely identifiable — two settlements matching one unlabelled bank credit equally well.
@@ -79,6 +79,12 @@ Below **60%** the resolver flags instead of resolving. It never claims more than
 
 The reasoning step can move the score. It cannot override the arithmetic that produced it.
 
+**Every one of those steps is visible in the product**, not just described here: each check row shows
+its fitted weight, and every resolution carries the full breakdown — each contribution as a signed
+diverging bar, then the log-odds sum, the logistic, each cap, and the final number. The fits
+themselves, their metrics, and an honest reading of which of those metrics are actually meaningful
+are at [`/how-it-works`](/how-it-works).
+
 ## The hard cases
 
 The bundled fixtures are built so each difficult case is difficult for a *different* reason:
@@ -86,13 +92,13 @@ The bundled fixtures are built so each difficult case is difficult for a *differ
 | Case | What makes it hard |
 |---|---|
 | Duplicate capture (TXN-1006) | Reconciles perfectly against the bank — $145.04 in, $145.04 settled. Only visible by comparing captures to the order total. |
-| Two identical claimants (TXN-1007A/B) | One unlabelled credit, two customers who bought the same bench 13 minutes apart. **Correctly refused at 40%** rather than coin-flipped. |
+| Two identical claimants (TXN-1007A/B) | One unlabelled credit, two customers who bought the same bench 13 minutes apart. **Correctly refused at 17%** rather than coin-flipped. |
 | Weekend posting lag (TXN-1003) | A 2.5-day calendar gap that is one business day. |
 | Currency rounding (TXN-1004) | Two cents on a EUR→USD settlement — inside tolerance, not a shortfall. |
 | Partial refund in flight (TXN-1005) | Authorised, not yet drawn. The bank is right; the ledger is ahead. |
 | Partial capture (TXN-1013) | $20 short, explained only by a support transcript. |
 | Unexplained shortfall (TXN-1012) | $12.40 gone, and every ordinary explanation ruled out rather than merely doubted. |
-| Orphan bank debit (BNK-009) | No internal record of any kind. Flagged at 20%. |
+| Orphan bank debit (BNK-009) | No internal record of any kind. Flagged at 5%. |
 
 Result: **6 matched, 5 explained differences, 5 flagged.**
 
@@ -147,7 +153,13 @@ identical. See `BUILD_LOG.md` for the captured output.
 
 ## Status
 
-This build runs in **mock mode** by default — no real Anthropic API key is present. All resolver reasoning shown is realistic, well-constructed canned output tied to the bundled fixture data, streamed with the same pacing real mode uses. Every deterministic check, confidence score and bucket assignment is computed live from the fixtures either way. Dropping a real `ANTHROPIC_API_KEY` into the environment flips it to live reasoning with zero code changes, behind the rate limiter described below.
+This build runs in **mock mode** by default — no real `GEMINI_API_KEY` is present. All resolver reasoning shown is realistic, well-constructed canned output tied to the bundled fixture data, streamed with the same pacing real mode uses. Every deterministic check, confidence score and bucket assignment is computed live from the fixtures either way. Dropping a real `GEMINI_API_KEY` into the environment flips it to live reasoning with zero code changes, behind the quota guards described below.
+
+The reasoning step runs on **Gemini's free tier specifically because there is no billing account behind it.** This is a public demo anyone can hit; past the free quota the provider refuses and we fall back to canned reasoning, rather than a card being charged. The worst case is degraded prose, not a bill.
+
+Two things are fitted rather than hand-chosen, and both are shown in the app at [`/how-it-works`](/how-it-works): the deterministic check weights (logistic regression, 1,500 synthetic examples) and a calibration of the model's own stated confidence against ground truth (isotonic, 200 live calls, metrics on a held-out quarter). The 200 replies behind the second fit are committed to `lib/fitting/fit2-samples.json`, so it can be re-checked without spending a call.
+
+The calibration found something simpler than expected: the model's stated confidence is worth listening to **only above 0.80**, and below that — including a 0.00 shrug on a case that never resolves itself — it counts against the transaction. `/how-it-works` also publishes the metric that got *worse* after calibration, and why the clamp that causes it is kept anyway.
 
 Every resolution shows its provenance (`mock` / `real`) in the UI, so live and canned reasoning are never confused.
 
@@ -158,30 +170,36 @@ See `MORNING_CHECKLIST.md` for exactly what to do to go live, and `BUILD_LOG.md`
 - Next.js 14 (App Router) + TypeScript + Tailwind CSS
 - Geist Sans / Geist Mono, self-hosted variable fonts — no external font requests
 - Light and dark themes, following the OS until you choose, applied before first paint
-- Anthropic API (`@anthropic-ai/sdk`, `claude-sonnet-4-6`) for the resolver's reasoning step
+- Gemini (`@google/genai`, `gemini-3.5-flash-lite`) for the resolver's reasoning step — free tier, no billing account
+- Logistic regression + isotonic calibration, both fitted by scripts in `/scripts` and committed as generated TypeScript
 - Server-Sent Events for live streaming of resolver output
 - No database — evidence fixtures are bundled JSON; nothing here needs to persist across requests
 
 ## Guardrails
 
-Five independent triggers guard live API spend. Every one of them **falls back to mock reasoning
-rather than erroring** — a user always gets a working resolution; only the provenance degrades.
+There is no dollar cap here, because there are no dollars — the constraint is **provider quota**.
+Five independent triggers keep us well inside it, and every one of them **falls back to mock
+reasoning rather than erroring**: a user always gets a working resolution; only the provenance
+degrades.
 
 | Trigger | Env var | Default |
 |---|---|---|
 | Kill switch | `DISABLE_REAL_MODE=1` | off — flip it in the dashboard, no redeploy |
 | Per IP, per hour | `RATE_LIMIT_PER_IP_PER_HOUR` | 3 |
-| Global calls per day | `DAILY_REAL_CALL_CAP` | 50 |
-| Global dollars per day | `DAILY_SPEND_CAP_USD` | $2 |
+| Global calls per day | `DAILY_REAL_CALL_CAP` | 300 (free tier states ~1000) |
 | Live calls per upload | fixed | 10 |
+| Provider 429 | — | latches live mode off for the rest of the day |
 
-- The dollar cap reserves worst-case headroom before permitting a call, so an in-flight call can
-  never push spend past the ceiling.
+- **A single quota error latches.** Retrying into an exhausted quota is waste, and looks like abuse
+  from the provider's side, so the first `RESOURCE_EXHAUSTED` turns live reasoning off until the
+  daily reset and logs it loudly.
+- Token usage is counted and surfaced for observability, against a stated free-tier ceiling of
+  ~15 RPM / 1000 RPD / 250k TPM (confirmed 2026-08-13 — see `DECISIONS.md`).
 - The limiter is **Upstash Redis** when `UPSTASH_REDIS_REST_URL` / `_TOKEN` are set, and in-memory
   otherwise. That distinction matters: without Redis each serverless instance keeps its own counters,
   so the effective public limit is (limit × instances). The test suite demonstrates exactly this.
 - **Fixed token budget** per resolver call (`max_tokens: 1200`) — no open-ended generations.
-- Placeholder keys (`sk-ant-placeholder`, `your-key-here`, empty) never enable spend.
+- Placeholder keys (`your-key-here`, `changeme`, empty, anything under 30 chars) never enable live mode.
 - **When a cap is hit, the UI says so properly** — which limit, how long until it resets, how much of
   each budget remains, and an explicit note that nothing on screen is degraded output. A cap tripping
   partway through a batch surfaces mid-run rather than silently changing the results underneath you.
@@ -201,7 +219,10 @@ Open `http://localhost:3000`. Works fully in mock mode with no environment varia
 npm run build            # zero errors
 npm run resolver         # every fixture case, full reasoning + citations
 npm run resolver TXN-1006
-npm run test:guardrails  # spend guards: concurrency, dollar cap, kill switch, per-upload cap
+npm run test:guardrails  # quota guards: concurrency, daily cap, kill switch, per-upload cap, 429 latch
+npm run fit:weights      # Fit 1 — check weights by logistic regression (no key needed)
+npm run fit:calibrate    # Fit 2 — calibrate stated confidence (needs GEMINI_API_KEY; refuses without)
+npm run test:injection-live  # 4 adversarial payloads against the real model (needs GEMINI_API_KEY)
 npm run test:ingest      # ingestion, input caps, prompt-injection defence
 npm run test:e2e         # both workflows over HTTP (needs `npm run start` running)
 npx tsx scripts/test-responsive.ts   # 375 / 768 / 1024 / 1440px
@@ -223,7 +244,10 @@ Currently behind Vercel SSO deployment protection (302 unless you're logged into
 /lib/fixtures           mock evidence (bank, settlement, orders, shipments, chats, disputes)
 /lib/resolver           checks.ts · resolve.ts · mock-reasoning.ts · llm.ts · rebuttal.ts
 /lib/ingest             CSV/JSON ingestion, validation, sanitising, caps
-/lib/ratelimit.ts       the spend guards (Upstash-backed when configured)
+/lib/ratelimit.ts       the quota guards (Upstash-backed when configured)
+/lib/fitting            synthetic data generator + logistic regression / isotonic
+/lib/resolver/fitted.ts      GENERATED by `npm run fit:weights`
+/lib/resolver/calibration.ts GENERATED by `npm run fit:calibrate`
 /scripts                resolver runner + rate-limit, e2e and responsive tests
 ```
 

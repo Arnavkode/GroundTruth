@@ -14,6 +14,7 @@ import {
 import { useResolverStream } from "@/components/useResolverStream";
 import { ArcCluster, ScatterField } from "@/components/decor";
 import { UploadPanel } from "@/components/upload";
+import { CalibrationPanel, ScoreBreakdown } from "@/components/scoring";
 import type { IngestReport } from "@/lib/ingest";
 import type { EvidenceDataset } from "@/lib/resolver/types";
 import type { ResolvedStatus, Resolution } from "@/lib/resolver/types";
@@ -392,6 +393,8 @@ function ResolutionDetail({ r }: { r: Resolution }) {
       </div>
 
       <aside className="space-y-7">
+        <CalibrationPanel r={r} />
+        <ScoreBreakdown r={r} />
         <div className="card px-5 py-4">
           <ConfidenceMeter value={r.confidence} status={r.status} />
           <dl className="mt-5 space-y-2 border-t border-rule pt-4 text-sm">

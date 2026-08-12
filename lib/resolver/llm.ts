@@ -226,10 +226,20 @@ export async function realJudgement(
     throw err;
   }
 
+  // Key names confirmed against a live response on 2026-08-13, not guessed:
+  // { total_tokens, total_input_tokens, total_output_tokens, total_thought_tokens, ... }.
+  // Thinking tokens count as output for quota purposes, so they are added in rather
+  // than quietly dropped — undercounting our own usage is the wrong direction to err.
   const rawUsage = (response as unknown as { usage?: Record<string, number> }).usage ?? {};
+  const num = (...keys: string[]) => {
+    for (const k of keys) if (Number.isFinite(Number(rawUsage[k]))) return Number(rawUsage[k]);
+    return 0;
+  };
   const usage = {
-    inputTokens: Number(rawUsage.input_tokens ?? rawUsage.prompt_tokens ?? 0),
-    outputTokens: Number(rawUsage.output_tokens ?? rawUsage.candidates_tokens ?? 0),
+    inputTokens: num("total_input_tokens", "input_tokens", "prompt_tokens"),
+    outputTokens:
+      num("total_output_tokens", "output_tokens", "candidates_tokens") +
+      num("total_thought_tokens"),
   };
 
   const text = response.output_text ?? "";

@@ -217,9 +217,13 @@ export default function Home() {
           <div>
             <h2 className="font-display text-3xl sm:text-4xl">How the confidence score is built</h2>
             <p className="mt-3 max-w-2xl text-base leading-relaxed text-muted">
-              Not a vibe. Every check contributes a signed log-odds weight, and the number you see is
-              the arithmetic those weights produce — then capped by what the evidence can actually
-              support.
+              Not a vibe. Every check contributes a signed log-odds weight — fitted by logistic
+              regression against 1,500 synthetic examples, not chosen by hand — and the number you
+              see is the arithmetic those weights produce, capped by what the evidence supports.{" "}
+              <Link href="/how-it-works" className="text-signal underline underline-offset-2">
+                The fits, the metrics and the caveats
+              </Link>
+              .
             </p>
             <div className="mt-8 grid gap-8 sm:grid-cols-3">
               <Step

@@ -164,3 +164,116 @@ Every unsupervised call made during the build, and why.
   a live deployment reports `store: "redis"`, the caps are per-instance and the guardrail that matters
   most isn't actually running. Reasoning is in `BUILD_LOG.md`; the safe sequence is in
   `MORNING_CHECKLIST.md`.
+
+---
+
+## Addendum 2 — Gemini, fitted weights, and showing the math
+
+### Provider
+
+- **Anthropic → Gemini, for one reason: a free tier with no billing account behind it.** This is a
+  public, unauthenticated demo. Under Anthropic the worst case was a bounded dollar loss; under
+  Gemini's free tier there is no card attached, so past the quota the provider simply refuses and we
+  fall back to canned reasoning. That converts the whole spend-guardrail problem into a quota
+  problem, which is strictly safer for something anyone can hit.
+- **Model IDs and SDK surface confirmed 2026-08-13 against Google's live docs, not recalled** — and
+  then cross-checked against `node_modules/@google/genai/dist/genai.d.ts`, which is the only source
+  that cannot be out of date relative to the installed code. `@google/genai` v2.16.0,
+  `ai.interactions.create({ model, input, system_instruction, generation_config, response_format })`,
+  `gemini-3.5-flash-lite`, `generation_config.max_output_tokens`, `thinking_level: "low"`.
+  Full table in `BUILD_LOG.md` Addendum 3.
+- **Free-tier figures (15 RPM / 1000 RPD / 250k TPM) are the one number I could not read off Google's
+  own page** — it now defers to the AI Studio dashboard. They are used only to *size our caps
+  conservatively downward* (300/day against a stated 1000), never as a target, so staleness cannot
+  hurt us. Recorded here with the date so the next person knows to re-check rather than trust it.
+- **The injection defence did not need re-designing for a new provider, and that is the point.** The
+  load-bearing guarantee is structural: the model cannot set status or confidence, and its only lever
+  is a weight clamped to [-1, 1]. That holds for any provider. Gemini's own behavioural resistance is
+  a *second* layer and is not yet re-verified — see the honesty note at the end.
+
+### The two fits
+
+- **Fit 1 replaces hand-chosen check weights with logistic-regression coefficients.** The old weights
+  were defensible but arbitrary. Fitted weights are at least *derived from something*, and the
+  something is stated: 1,500 synthetic examples over 13 archetypes, ground truth known by
+  construction because the generator assigns it.
+- **The target changed, deliberately, and the score's meaning changed with it.** Old score: "is the
+  stated account of this transaction correct?" New score: "how likely is it that this needs no
+  human?" Under the new target a proven duplicate capture scores 37% rather than 92% — correct, since
+  it definitely needs a person. The gain is that "flag below 60%" now falls out of the target instead
+  of being a bolted-on rule. Every doc, comment and UI string that described the old meaning was
+  changed, and one e2e assertion was inverted rather than deleted.
+- **AUC 1.0000 is reported alongside the reason not to be impressed by it.** The features were built
+  to detect these archetypes, so perfect separation is close to circular. The informative numbers are
+  the Brier score (0.0516 against a 74.3% base rate) and the calibration error (0.1744, which is
+  poor — L2 shrinkage keeps probabilities off the extremes). Both are on `/how-it-works`, not hidden
+  in a log. A metric you only publish when it flatters you is not a metric.
+- **Fit 2 (calibrating the model's stated confidence) is isotonic, not another logistic.** The
+  raw→true relationship only needs to be monotone, there is no reason to assume it is a logistic in
+  the raw weight, and the sample from a free tier is small. Isotonic makes the weaker assumption.
+- **Fit 2 refuses to run without a live key rather than fabricating a fit.** `calibration.ts` ships
+  as `null`, `calibrateWeight` is an explicit pass-through, and every surface that would show a
+  correction says "uncalibrated" instead. A fake calibration would be the single most dishonest thing
+  this codebase could contain.
+- **Generated files are committed, not gitignored.** `fitted.ts` and `calibration.ts` are build
+  inputs; a deploy must not depend on a fitting run having happened on the deploying machine.
+
+### Guardrails, re-framed
+
+- **The dollar cap is gone because there are no dollars.** `DAILY_SPEND_CAP_USD` and the worst-case
+  headroom reservation were replaced by a call cap (300/day), a token counter for observability, and
+  a **latch**: a single provider 429 turns live mode off for the rest of the day and logs loudly.
+  Retrying into an exhausted quota is pure waste and looks like abuse from the provider's side.
+- **Every limit still degrades to mock rather than erroring.** Unchanged from the original design and
+  worth restating: hitting a cap is not a failure state, and the UI says so explicitly, because every
+  number on the page came from the deterministic model either way.
+
+### Making it visible
+
+- **The score breakdown is the primary view, not a debug drawer.** The brief was right that a
+  confidence number you cannot interrogate is a vibe with a decimal point. Every contribution, the
+  log-odds sum, the logistic, each cap and the final figure are on the resolution itself; the
+  diverging-bar treatment that was previously only on the rebuttal now carries the resolver too.
+- **`/how-it-works` leads with the caveat.** The synthetic-data disclosure is the first section, above
+  the metrics, because a reader who stops after the impressive number should have already read the
+  reason it is less impressive than it looks.
+
+### Fit 2, once the key arrived
+
+- **Metrics are computed on a held-out quarter, and the shipped map is fitted on everything.**
+  Isotonic regression fits its own training data perfectly by construction — a step per observation
+  is always available to it — so in-sample numbers would have been a tautology in exactly the way
+  Fit 1's AUC of 1.0 is. Standard practice, but worth stating because it is the only reason the
+  reported numbers mean anything.
+- **Every live reply is committed to `lib/fitting/fit2-samples.json`.** Re-fitting or changing how
+  the fit is *reported* now costs zero quota and zero wall clock
+  (`CAL_SAMPLES=… npm run fit:calibrate`). It also turns the fit from a claim into something a
+  reader can re-check. This was added after the first 38-minute run had to be repeated purely to
+  improve the reporting — a cost worth never paying twice.
+- **The correction makes stand-alone ECE worse, and it ships anyway, with both numbers published.**
+  The lift is clamped to ±1 log-odds so the model cannot outvote deterministic evidence; against a
+  71% base rate that bound alone confines the stand-alone probability to [0.474, 0.869], which any
+  metric rewarding confident extremes will punish. The script measures the counterfactual rather
+  than arguing it: the same map with the clamp removed scores 0.0000. Publishing only the flattering
+  number would have been the easy option and the dishonest one.
+- **The fitted map is reported as what it actually is — a sign function.** All 16 steps saturate the
+  clamp, cutting at a stated weight of 0.80. Calling that "an isotonic calibration curve" would
+  oversell a much simpler object, so the app says "one threshold" and shows it.
+- **The generated file is deduplicated to one row per distinct x** (400 rows → 16). Identical
+  behaviour, from a file a person can actually read and audit.
+
+### Honesty note — what is and is not done
+
+Both blocked items ran once the key was supplied: **Fit 2 is fitted** (200 live calls, 0 failures)
+and the **Gemini-specific injection re-verification passed** (25 assertions, 4 real calls, captured
+in `BUILD_LOG.md`).
+
+**The key is deliberately not on the deployment.** `MORNING_CHECKLIST.md` §4 is explicit that a real
+key does not go on a public deployment until Upstash is configured and a live response reports
+`"store":"redis"` — without it, caps are counted per serverless instance and the effective public
+limit is (limit × instances). Upstash is not configured, so the preview still serves mock reasoning.
+Following that sequence was the whole point of writing it down.
+
+**The key was found in `.env.example`, which is committed.** It was moved to `.env.local` (gitignored)
+before any commit, and `git log -S` confirms it never entered history. `.env.example` carries an
+empty placeholder again.

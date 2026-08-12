@@ -117,6 +117,17 @@ function CheckRowBase({ check }: { check: Check }) {
           <span className="text-micro uppercase tracking-widest text-muted">
             {check.kind === "llm" ? "evidence reading" : "deterministic"}
           </span>
+          {/* The fitted log-odds this check contributed. Shown on every row —
+              the weights are the model, so hiding them hides the reasoning. */}
+          <span
+            className={`tnum font-mono text-micro ${
+              check.weight >= 0 ? "text-matched" : "text-flagged"
+            }`}
+            title="Fitted log-odds contribution to the confidence score"
+          >
+            {check.weight >= 0 ? "+" : ""}
+            {check.weight.toFixed(2)}
+          </span>
         </p>
         <p className="mt-1 text-sm leading-relaxed text-muted">{check.detail}</p>
         {check.citations.length > 0 && (

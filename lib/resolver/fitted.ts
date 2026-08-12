@@ -9,7 +9,7 @@
  * distribution, not evidence of generalisation to a real acquirer's book. What
  * they replace is a set of constants chosen by hand, which is the point.
  *
- * Generated 2026-08-12T10:09:31.079Z · seed 42
+ * Generated 2026-08-12T21:11:27.739Z · seed 42
  */
 
 export interface FittedModel {
@@ -33,7 +33,7 @@ export interface FittedModel {
 }
 
 export const FIT1: FittedModel = {
-  "generatedAt": "2026-08-12T10:09:31.079Z",
+  "generatedAt": "2026-08-12T21:11:27.739Z",
   "seed": 42,
   "n": 1500,
   "intercept": -1.7028,

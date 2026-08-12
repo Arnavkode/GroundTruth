@@ -55,6 +55,7 @@ function SiteHeader() {
           {[
             { href: "/reconcile", label: "Reconcile" },
             { href: "/investigate", label: "Investigate" },
+            { href: "/how-it-works", label: "How it works" },
           ].map((l) => (
             <Link
               key={l.href}

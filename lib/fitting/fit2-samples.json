@@ -1,0 +1,1202 @@
+[
+  {
+    "archetype": "fee-only-no-ref",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "bank-only-orphan",
+    "label": 0,
+    "raw": 0,
+    "verdict": "inconclusive"
+  },
+  {
+    "archetype": "clean-match",
+    "label": 1,
+    "raw": 1,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "missing-bank-line",
+    "label": 0,
+    "raw": 0,
+    "verdict": "inconclusive"
+  },
+  {
+    "archetype": "refund-in-flight",
+    "label": 1,
+    "raw": 0.9,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "weekend-lag",
+    "label": 1,
+    "raw": 0.9,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "weekend-lag",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "duplicate-capture",
+    "label": 0,
+    "raw": -1,
+    "verdict": "contradicts"
+  },
+  {
+    "archetype": "missing-bank-line",
+    "label": 0,
+    "raw": 0,
+    "verdict": "inconclusive"
+  },
+  {
+    "archetype": "fx-rounding",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "duplicate-capture",
+    "label": 0,
+    "raw": -1,
+    "verdict": "contradicts"
+  },
+  {
+    "archetype": "fee-only-no-ref",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "fee-only-no-ref",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "fee-only-no-ref",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "partial-capture",
+    "label": 1,
+    "raw": 0.85,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "clean-match",
+    "label": 1,
+    "raw": 1,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "refund-in-flight",
+    "label": 1,
+    "raw": 0.95,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "clean-match",
+    "label": 1,
+    "raw": 0.9,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "duplicate-capture",
+    "label": 0,
+    "raw": -1,
+    "verdict": "contradicts"
+  },
+  {
+    "archetype": "unexplained-shortfall",
+    "label": 0,
+    "raw": -0.85,
+    "verdict": "contradicts"
+  },
+  {
+    "archetype": "contested-identity",
+    "label": 0,
+    "raw": 0,
+    "verdict": "inconclusive"
+  },
+  {
+    "archetype": "contested-identity",
+    "label": 0,
+    "raw": 0,
+    "verdict": "inconclusive"
+  },
+  {
+    "archetype": "unexplained-shortfall",
+    "label": 0,
+    "raw": -0.85,
+    "verdict": "contradicts"
+  },
+  {
+    "archetype": "clean-refund",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "contested-identity",
+    "label": 0,
+    "raw": 0,
+    "verdict": "inconclusive"
+  },
+  {
+    "archetype": "fx-rounding",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "weekend-lag",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "clean-match",
+    "label": 1,
+    "raw": 1,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "fx-rounding",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "clean-match",
+    "label": 1,
+    "raw": 0.9,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "duplicate-capture",
+    "label": 0,
+    "raw": -1,
+    "verdict": "contradicts"
+  },
+  {
+    "archetype": "clean-refund",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "contested-identity",
+    "label": 0,
+    "raw": 0,
+    "verdict": "inconclusive"
+  },
+  {
+    "archetype": "clean-match",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "missing-bank-line",
+    "label": 0,
+    "raw": 0,
+    "verdict": "inconclusive"
+  },
+  {
+    "archetype": "fee-only-no-ref",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "missing-bank-line",
+    "label": 0,
+    "raw": 0,
+    "verdict": "inconclusive"
+  },
+  {
+    "archetype": "unexplained-shortfall",
+    "label": 0,
+    "raw": -0.8,
+    "verdict": "contradicts"
+  },
+  {
+    "archetype": "bank-only-orphan",
+    "label": 0,
+    "raw": 0,
+    "verdict": "inconclusive"
+  },
+  {
+    "archetype": "weekend-lag",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "clean-match",
+    "label": 1,
+    "raw": 0.9,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "clean-match",
+    "label": 1,
+    "raw": 0.9,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "missing-bank-line",
+    "label": 0,
+    "raw": -0.4,
+    "verdict": "inconclusive"
+  },
+  {
+    "archetype": "fx-rounding",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "clean-refund",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "duplicate-capture",
+    "label": 0,
+    "raw": -1,
+    "verdict": "contradicts"
+  },
+  {
+    "archetype": "bank-only-orphan",
+    "label": 0,
+    "raw": 0,
+    "verdict": "not-applicable"
+  },
+  {
+    "archetype": "unexplained-shortfall",
+    "label": 0,
+    "raw": -0.85,
+    "verdict": "contradicts"
+  },
+  {
+    "archetype": "fee-only-no-ref",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "fee-only-no-ref",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "refund-in-flight",
+    "label": 1,
+    "raw": 0.9,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "fee-only-no-ref",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "contested-identity",
+    "label": 0,
+    "raw": 0,
+    "verdict": "inconclusive"
+  },
+  {
+    "archetype": "fx-rounding",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "weekend-lag",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "missing-bank-line",
+    "label": 0,
+    "raw": 0.6,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "fee-mismatch",
+    "label": 0,
+    "raw": 0.6,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "clean-match",
+    "label": 1,
+    "raw": 1,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "refund-in-flight",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "weekend-lag",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "fx-rounding",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "fee-only-no-ref",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "unexplained-shortfall",
+    "label": 0,
+    "raw": -0.8,
+    "verdict": "contradicts"
+  },
+  {
+    "archetype": "clean-match",
+    "label": 1,
+    "raw": 0.9,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "refund-in-flight",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "clean-match",
+    "label": 1,
+    "raw": 1,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "clean-match",
+    "label": 1,
+    "raw": 0.9,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "weekend-lag",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "refund-in-flight",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "bank-only-orphan",
+    "label": 0,
+    "raw": 0,
+    "verdict": "inconclusive"
+  },
+  {
+    "archetype": "clean-match",
+    "label": 1,
+    "raw": 0.95,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "refund-in-flight",
+    "label": 1,
+    "raw": 0.85,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "duplicate-capture",
+    "label": 0,
+    "raw": -1,
+    "verdict": "contradicts"
+  },
+  {
+    "archetype": "fee-only-no-ref",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "clean-refund",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "duplicate-capture",
+    "label": 0,
+    "raw": -1,
+    "verdict": "contradicts"
+  },
+  {
+    "archetype": "clean-match",
+    "label": 1,
+    "raw": 1,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "fx-rounding",
+    "label": 1,
+    "raw": 0.85,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "fee-only-no-ref",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "clean-refund",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "clean-refund",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "clean-match",
+    "label": 1,
+    "raw": 0.95,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "weekend-lag",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "weekend-lag",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "weekend-lag",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "fee-only-no-ref",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "refund-in-flight",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "fee-only-no-ref",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "unexplained-shortfall",
+    "label": 0,
+    "raw": -0.8,
+    "verdict": "contradicts"
+  },
+  {
+    "archetype": "fee-only-no-ref",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "unexplained-shortfall",
+    "label": 0,
+    "raw": -0.8,
+    "verdict": "contradicts"
+  },
+  {
+    "archetype": "clean-refund",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "duplicate-capture",
+    "label": 0,
+    "raw": -1,
+    "verdict": "contradicts"
+  },
+  {
+    "archetype": "fee-only-no-ref",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "fee-only-no-ref",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "clean-match",
+    "label": 1,
+    "raw": 0.9,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "fx-rounding",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "clean-match",
+    "label": 1,
+    "raw": 0.9,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "refund-in-flight",
+    "label": 1,
+    "raw": 0.9,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "duplicate-capture",
+    "label": 0,
+    "raw": -1,
+    "verdict": "contradicts"
+  },
+  {
+    "archetype": "unexplained-shortfall",
+    "label": 0,
+    "raw": -0.8,
+    "verdict": "contradicts"
+  },
+  {
+    "archetype": "fee-only-no-ref",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "fee-only-no-ref",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "partial-capture",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "weekend-lag",
+    "label": 1,
+    "raw": 0.85,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "clean-match",
+    "label": 1,
+    "raw": 0.9,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "fx-rounding",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "unexplained-shortfall",
+    "label": 0,
+    "raw": -0.8,
+    "verdict": "contradicts"
+  },
+  {
+    "archetype": "weekend-lag",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "fx-rounding",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "clean-refund",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "fx-rounding",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "weekend-lag",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "duplicate-capture",
+    "label": 0,
+    "raw": -1,
+    "verdict": "contradicts"
+  },
+  {
+    "archetype": "bank-only-orphan",
+    "label": 0,
+    "raw": 0,
+    "verdict": "inconclusive"
+  },
+  {
+    "archetype": "fee-only-no-ref",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "refund-in-flight",
+    "label": 1,
+    "raw": 0.9,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "weekend-lag",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "fee-mismatch",
+    "label": 0,
+    "raw": 0.5,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "weekend-lag",
+    "label": 1,
+    "raw": 0.9,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "fx-rounding",
+    "label": 1,
+    "raw": 0.85,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "clean-refund",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "clean-match",
+    "label": 1,
+    "raw": 1,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "clean-match",
+    "label": 1,
+    "raw": 0.9,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "unexplained-shortfall",
+    "label": 0,
+    "raw": -0.8,
+    "verdict": "contradicts"
+  },
+  {
+    "archetype": "fee-mismatch",
+    "label": 0,
+    "raw": -0.8,
+    "verdict": "contradicts"
+  },
+  {
+    "archetype": "clean-match",
+    "label": 1,
+    "raw": 0.9,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "partial-capture",
+    "label": 1,
+    "raw": 0.9,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "unexplained-shortfall",
+    "label": 0,
+    "raw": -0.8,
+    "verdict": "contradicts"
+  },
+  {
+    "archetype": "partial-capture",
+    "label": 1,
+    "raw": 0.85,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "clean-refund",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "clean-match",
+    "label": 1,
+    "raw": 0.9,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "bank-only-orphan",
+    "label": 0,
+    "raw": -0.5,
+    "verdict": "inconclusive"
+  },
+  {
+    "archetype": "refund-in-flight",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "clean-match",
+    "label": 1,
+    "raw": 1,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "fee-mismatch",
+    "label": 0,
+    "raw": 0.5,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "weekend-lag",
+    "label": 1,
+    "raw": 0.9,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "clean-match",
+    "label": 1,
+    "raw": 0.9,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "unexplained-shortfall",
+    "label": 0,
+    "raw": -0.85,
+    "verdict": "contradicts"
+  },
+  {
+    "archetype": "fee-only-no-ref",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "missing-bank-line",
+    "label": 0,
+    "raw": -0.2,
+    "verdict": "inconclusive"
+  },
+  {
+    "archetype": "weekend-lag",
+    "label": 1,
+    "raw": 0.85,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "clean-match",
+    "label": 1,
+    "raw": 0.95,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "clean-match",
+    "label": 1,
+    "raw": 0.9,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "fee-only-no-ref",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "weekend-lag",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "refund-in-flight",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "weekend-lag",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "contested-identity",
+    "label": 0,
+    "raw": 0,
+    "verdict": "inconclusive"
+  },
+  {
+    "archetype": "contested-identity",
+    "label": 0,
+    "raw": 0,
+    "verdict": "inconclusive"
+  },
+  {
+    "archetype": "clean-refund",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "refund-in-flight",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "partial-capture",
+    "label": 1,
+    "raw": 0.9,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "refund-in-flight",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "refund-in-flight",
+    "label": 1,
+    "raw": 0.9,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "fee-mismatch",
+    "label": 0,
+    "raw": 0.4,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "clean-match",
+    "label": 1,
+    "raw": 0.95,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "duplicate-capture",
+    "label": 0,
+    "raw": -1,
+    "verdict": "contradicts"
+  },
+  {
+    "archetype": "refund-in-flight",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "fx-rounding",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "unexplained-shortfall",
+    "label": 0,
+    "raw": -0.8,
+    "verdict": "contradicts"
+  },
+  {
+    "archetype": "fee-only-no-ref",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "bank-only-orphan",
+    "label": 0,
+    "raw": 0,
+    "verdict": "inconclusive"
+  },
+  {
+    "archetype": "bank-only-orphan",
+    "label": 0,
+    "raw": 0,
+    "verdict": "inconclusive"
+  },
+  {
+    "archetype": "clean-match",
+    "label": 1,
+    "raw": 0.95,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "unexplained-shortfall",
+    "label": 0,
+    "raw": -0.9,
+    "verdict": "contradicts"
+  },
+  {
+    "archetype": "refund-in-flight",
+    "label": 1,
+    "raw": 0.9,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "fx-rounding",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "fee-only-no-ref",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "clean-refund",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "weekend-lag",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "clean-match",
+    "label": 1,
+    "raw": 1,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "clean-match",
+    "label": 1,
+    "raw": 0.9,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "fx-rounding",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "clean-refund",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "fee-only-no-ref",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "duplicate-capture",
+    "label": 0,
+    "raw": -1,
+    "verdict": "contradicts"
+  },
+  {
+    "archetype": "clean-match",
+    "label": 1,
+    "raw": 1,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "clean-match",
+    "label": 1,
+    "raw": 0.9,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "clean-match",
+    "label": 1,
+    "raw": 1,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "clean-match",
+    "label": 1,
+    "raw": 1,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "contested-identity",
+    "label": 0,
+    "raw": 0,
+    "verdict": "inconclusive"
+  },
+  {
+    "archetype": "contested-identity",
+    "label": 0,
+    "raw": 0,
+    "verdict": "inconclusive"
+  },
+  {
+    "archetype": "fee-only-no-ref",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "clean-refund",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "fee-only-no-ref",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "unexplained-shortfall",
+    "label": 0,
+    "raw": -0.85,
+    "verdict": "contradicts"
+  },
+  {
+    "archetype": "clean-match",
+    "label": 1,
+    "raw": 0.9,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "contested-identity",
+    "label": 0,
+    "raw": 0,
+    "verdict": "inconclusive"
+  },
+  {
+    "archetype": "clean-match",
+    "label": 1,
+    "raw": 0.9,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "clean-match",
+    "label": 1,
+    "raw": 0.95,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "clean-match",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "refund-in-flight",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "partial-capture",
+    "label": 1,
+    "raw": 0.95,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "partial-capture",
+    "label": 1,
+    "raw": 0.85,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "fee-only-no-ref",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "fx-rounding",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "duplicate-capture",
+    "label": 0,
+    "raw": -0.9,
+    "verdict": "contradicts"
+  },
+  {
+    "archetype": "refund-in-flight",
+    "label": 1,
+    "raw": 0.85,
+    "verdict": "corroborates"
+  },
+  {
+    "archetype": "clean-refund",
+    "label": 1,
+    "raw": 0.8,
+    "verdict": "corroborates"
+  }
+]

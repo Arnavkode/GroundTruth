@@ -13,7 +13,8 @@
     "test:guardrails": "tsx scripts/test-guardrails.ts",
     "test:ingest": "tsx scripts/test-ingest.ts",
     "fit:weights": "tsx scripts/fit-weights.ts",
-    "fit:calibrate": "tsx scripts/fit-calibration.ts"
+    "fit:calibrate": "tsx --env-file-if-exists=.env.local scripts/fit-calibration.ts",
+    "test:injection-live": "tsx --env-file-if-exists=.env.local scripts/test-injection-live.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.68.0",

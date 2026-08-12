@@ -13,6 +13,7 @@ import {
 } from "@/components/ui";
 import { useResolverStream } from "@/components/useResolverStream";
 import { disputes } from "@/lib/fixtures";
+import { CalibrationPanel, ScoreBreakdown } from "@/components/scoring";
 import { ArcCluster, ConfidenceDial, ScatterField } from "@/components/decor";
 import type { TimelineEvent } from "@/lib/resolver/types";
 
@@ -233,6 +234,9 @@ export default function InvestigatePage() {
             <div className="card px-5 py-4">
               <ConfidenceMeter value={resolution.confidence} status={resolution.status} />
             </div>
+
+            <CalibrationPanel r={resolution} />
+            <ScoreBreakdown r={resolution} />
 
             {state.rebuttal ? (
               <RebuttalPanel data={state.rebuttal} />
