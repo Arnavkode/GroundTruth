@@ -41,7 +41,30 @@ The three status hues are the only saturated colour in the interface and they ar
 decoratively — a green in this app always means "sources agree". Backgrounds use them at 6–8% so a
 bucket reads as tinted paper rather than a coloured block.
 
-**Light only, deliberately.** One palette executed properly beats two half-done.
+### Both themes
+
+Every token is an RGB triplet in a CSS variable, so Tailwind's opacity modifiers
+(`bg-matched/[0.06]`) keep working and a theme change is a variable swap rather than a class
+rewrite. `darkMode: "class"`; the decorative SVGs read the same variables, so the geometry themes
+with everything else instead of being repainted for it.
+
+```
+              light                    dark
+paper       251 250 246              15 17 19      warm near-black, not blue-black
+surface     255 255 255              22 25 28
+ink          20  22  26             232 230 224    warm off-white
+muted        93 101 112             154 163 171
+rule        228 224 214              42  47  52
+signal       15  95  85              79 179 163    lifted for contrast on dark
+matched      46 111  78              95 191 135
+explained   154 101  17             217 164  65
+flagged     168  54  44             224 119 107
+```
+
+Dark is the same room with the lights off, not a different room: the warm cast is preserved, and the
+three status hues are lifted only as far as contrast requires. An inline boot script applies the
+class before first paint, so the theme never flashes. It follows the OS preference until the user
+picks explicitly, then remembers the choice.
 
 ## Structure
 
@@ -139,6 +162,22 @@ The first build was noticeably laggy. Four causes, all fixed:
 Row components that re-render on every streamed event (`CheckRow`, `CitationTag`, `SourcePip`,
 `Timeline`) are memoised, so a 217-event reconcile run does not re-render every row on every tick.
 
+## When a rate limit is hit
+
+The design rule: **a limit being hit is not an error and must not look like one.** Everything on the
+page is still complete and still correct — the deterministic checks, the confidence model and the
+buckets never depended on a live model. Only the provenance of the written analysis changed.
+
+So the notice (`components/budget.tsx`) is toned to the severity rather than styled as a failure:
+neutral rule-grey for "no key configured", amber for a limit that lifts on its own (hourly, per-run),
+red for one that holds until tomorrow (daily calls, daily spend). It states which limit was hit, how
+long until it resets, and — in its own line — that nothing on screen is degraded output. Underneath,
+a four-cell counter strip shows *this hour / today / spend today / this run*, each turning red only
+when that particular budget is spent.
+
+If a cap trips partway through a batch, the stream emits a `limit` event and the notice appears mid-
+run. Silently degrading the rest of a run is the behaviour that makes a rate limit feel like a bug.
+
 ## Accessibility
 
 - Visible focus ring (2px signal, 2px offset) on everything focusable; never removed.
@@ -147,6 +186,9 @@ Row components that re-render on every streamed event (`CheckRow`, `CitationTag`
 - The confidence meter is a `role="meter"` with proper `aria-value*`.
 - Live regions on both streaming panels so the trace is announced.
 - Status is never colour-alone: glyph, label text and colour together.
+- Both palettes were checked at all four breakpoints; the responsive suite asserts the theme applies
+  on first paint in each.
+- The theme toggle is a 44px target with an `aria-label` that names the destination state.
 
 ## Copy
 

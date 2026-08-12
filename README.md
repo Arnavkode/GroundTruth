@@ -157,6 +157,7 @@ See `MORNING_CHECKLIST.md` for exactly what to do to go live, and `BUILD_LOG.md`
 
 - Next.js 14 (App Router) + TypeScript + Tailwind CSS
 - Geist Sans / Geist Mono, self-hosted variable fonts — no external font requests
+- Light and dark themes, following the OS until you choose, applied before first paint
 - Anthropic API (`@anthropic-ai/sdk`, `claude-sonnet-4-6`) for the resolver's reasoning step
 - Server-Sent Events for live streaming of resolver output
 - No database — evidence fixtures are bundled JSON; nothing here needs to persist across requests
@@ -170,8 +171,8 @@ rather than erroring** — a user always gets a working resolution; only the pro
 |---|---|---|
 | Kill switch | `DISABLE_REAL_MODE=1` | off — flip it in the dashboard, no redeploy |
 | Per IP, per hour | `RATE_LIMIT_PER_IP_PER_HOUR` | 3 |
-| Global calls per day | `DAILY_REAL_CALL_CAP` | 200 |
-| Global dollars per day | `DAILY_SPEND_CAP_USD` | $5 |
+| Global calls per day | `DAILY_REAL_CALL_CAP` | 50 |
+| Global dollars per day | `DAILY_SPEND_CAP_USD` | $2 |
 | Live calls per upload | fixed | 10 |
 
 - The dollar cap reserves worst-case headroom before permitting a call, so an in-flight call can
@@ -181,6 +182,9 @@ rather than erroring** — a user always gets a working resolution; only the pro
   so the effective public limit is (limit × instances). The test suite demonstrates exactly this.
 - **Fixed token budget** per resolver call (`max_tokens: 1200`) — no open-ended generations.
 - Placeholder keys (`sk-ant-placeholder`, `your-key-here`, empty) never enable spend.
+- **When a cap is hit, the UI says so properly** — which limit, how long until it resets, how much of
+  each budget remains, and an explicit note that nothing on screen is degraded output. A cap tripping
+  partway through a batch surfaces mid-run rather than silently changing the results underneath you.
 - No payment processor is integrated anywhere in this project. Groundtruth resolves evidence about transactions; it never creates, captures, moves, or charges anything.
 - All data is synthetic.
 

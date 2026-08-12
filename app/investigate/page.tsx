@@ -1,11 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { BudgetBadge, BudgetNotice } from "@/components/budget";
 import {
   CheckRow,
   CitationTag,
   ConfidenceMeter,
-  ModeBadge,
   Running,
   SourcePip,
   StatusChip,
@@ -73,7 +73,7 @@ export default function InvestigatePage() {
   return (
     <div className="py-10">
       <header className="decor-host grid gap-8 lg:grid-cols-[1.4fr_1fr]">
-        <ArcCluster className="decor -left-20 -top-8 h-56 w-56 opacity-60" tone="#A8362C" />
+        <ArcCluster className="decor -left-20 -top-8 h-56 w-56 opacity-60" tone="rgb(var(--c-flagged))" />
         <div className="above max-w-2xl">
           <p className="text-micro uppercase tracking-widest text-signal">Investigate mode</p>
           <h1 className="mt-2 font-display text-4xl leading-tight sm:text-5xl">
@@ -142,13 +142,15 @@ export default function InvestigatePage() {
       </section>
 
       <div className="mt-6 flex flex-wrap items-center gap-3">
-        <ModeBadge mode={state.mode} message={state.modeMessage} />
+        <BudgetBadge budget={state.budget} />
         {state.phase !== "idle" && (
           <button className="btn-quiet" onClick={reset} disabled={running}>
             Clear
           </button>
         )}
       </div>
+
+      <BudgetNotice budget={state.budget} />
 
       {state.error && (
         <p className="mt-6 rounded border border-flagged/40 bg-flagged/[0.06] px-4 py-3 text-sm text-flagged">
@@ -314,7 +316,7 @@ function InvestigateIdle() {
 
       <aside className="space-y-6">
         <div className="card px-5 py-5">
-          <ConfidenceDial className="mx-auto h-auto w-36" value={0.44} tone="#9A6511" />
+          <ConfidenceDial className="mx-auto h-auto w-36" value={0.44} tone="rgb(var(--c-explained))" />
           <p className="mt-2 text-center text-micro uppercase tracking-widest text-muted">
             win likelihood, scored not asserted
           </p>

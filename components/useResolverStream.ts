@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Citation, Rebuttal, Resolution } from "@/lib/resolver/types";
+import type { BudgetSnapshot } from "@/lib/stream";
 
 interface LiveUnit {
   ref: string;
@@ -19,6 +20,7 @@ export interface StreamState {
   modeMessage: string;
   origin: "fixtures" | "upload" | null;
   datasetLabel: string;
+  budget: BudgetSnapshot | null;
   live: LiveUnit | null;
   resolutions: Resolution[];
   summary: { matched: number; explained: number; flagged: number; total: number } | null;
@@ -35,6 +37,7 @@ const EMPTY: StreamState = {
   modeMessage: "",
   origin: null,
   datasetLabel: "",
+  budget: null,
   live: null,
   resolutions: [],
   summary: null,
@@ -74,6 +77,14 @@ export function useResolverStream() {
                 modeMessage: String(e.message ?? ""),
                 origin: (e.origin as "fixtures" | "upload") ?? null,
                 datasetLabel: String(e.datasetLabel ?? ""),
+                budget: (e.budget as BudgetSnapshot) ?? null,
+              };
+            case "limit":
+              return {
+                ...prev,
+                budget: e.budget as BudgetSnapshot,
+                mode: (e.budget as BudgetSnapshot).mode,
+                modeMessage: (e.budget as BudgetSnapshot).message,
               };
             case "unit-start":
               return {

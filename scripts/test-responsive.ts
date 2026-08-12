@@ -27,14 +27,21 @@ async function main() {
   const browser = await chromium.launch({ channel: "msedge" });
 
   for (const width of WIDTHS) {
+   for (const theme of ["light", "dark"] as const) {
     const height = width < 500 ? 812 : 900;
     const context = await browser.newContext({
       viewport: { width, height },
       hasTouch: width < 700,
+      colorScheme: theme,
     });
     const page = await context.newPage();
 
-    console.log(`\n${"-".repeat(92)}\n${width}px x ${height}px\n${"-".repeat(92)}`);
+    console.log(`\n${"-".repeat(92)}\n${width}px x ${height}px — ${theme}\n${"-".repeat(92)}`);
+
+    // The boot script honours the OS preference, so colorScheme drives the theme.
+    await page.goto(`${BASE}/`, { waitUntil: "domcontentloaded" });
+    const isDark = await page.evaluate(() => document.documentElement.classList.contains("dark"));
+    assert(`${theme} theme applied on first paint`, isDark === (theme === "dark"));
 
     for (const path of ["/", "/reconcile", "/investigate"]) {
       await page.goto(`${BASE}${path}`, { waitUntil: "networkidle" });
@@ -118,6 +125,7 @@ async function main() {
     }
 
     await context.close();
+   }
   }
 
   await browser.close();

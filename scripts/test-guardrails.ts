@@ -72,6 +72,12 @@ class FakeRedis implements RedisLike {
     this.calls += 1;
     return this.z(key).size;
   }
+  async zrange(key: string, start: number, stop: number, opts?: { withScores?: boolean }) {
+    this.calls += 1;
+    const sorted = [...this.z(key).entries()].sort((a, b) => a[1] - b[1]);
+    const slice = sorted.slice(start, stop === -1 ? undefined : stop + 1);
+    return opts?.withScores ? slice.flatMap(([m, sc]) => [m, sc]) : slice.map(([m]) => m);
+  }
   async zrem(key: string, member: string) {
     this.calls += 1;
     this.z(key).delete(member);
@@ -148,10 +154,11 @@ async function main() {
       kind: "memory" as const,
       async tryWindow(key: string, limit: number, windowMs: number, now: number) {
         const times = (state.windows.get(key) ?? []).filter((t) => t > now - windowMs);
-        if (times.length >= limit) return { count: times.length, allowed: false };
+        const oldest = times.length > 0 ? times[0] : null;
+        if (times.length >= limit) return { count: times.length, allowed: false, oldest };
         times.push(now);
         state.windows.set(key, times);
-        return { count: times.length, allowed: true };
+        return { count: times.length, allowed: true, oldest: oldest ?? now };
       },
       async tryCounter(key: string, limit: number) {
         const next = (state.counters.get(key) ?? 0) + 1;
@@ -293,7 +300,22 @@ async function main() {
   assert("still limited a minute later", blocked.mode === "mock");
   assert("recovered after the hour", recovered.mode === "real");
 
-  header("8. Client IP extraction");
+  header("8. The UI gets a usable reset clock and the configured limits");
+  shared.flush();
+  __setStoreForTests(redisStore(shared));
+  const t1 = Date.now();
+  for (let i = 0; i < perIpLimit(); i += 1) await checkRateLimit("203.0.113.44", { now: t1 });
+  const limited = await checkRateLimit("203.0.113.44", { now: t1 + 5 * 60_000 });
+  const minutes = limited.resetAt ? Math.round((limited.resetAt - (t1 + 5 * 60_000)) / 60_000) : -1;
+  console.log(
+    `  reason=${limited.reason} resetAt=+${minutes}min limits=${JSON.stringify(limited.limits)} store=${limited.store}`,
+  );
+  assert("a reset time is reported when limited", limited.resetAt !== null);
+  assert("reset is within the hour window", minutes > 0 && minutes <= 60, `${minutes} min`);
+  assert("configured limits are echoed for display", limited.limits.perIpPerHour === perIpLimit());
+  assert("the store kind is reported so the UI can warn", limited.store === "redis");
+
+  header("9. Client IP extraction");
   assert(
     "uses the left-most forwarded address",
     clientIp(new Headers({ "x-forwarded-for": "203.0.113.7, 70.41.3.18" })) === "203.0.113.7",

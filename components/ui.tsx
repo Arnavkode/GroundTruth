@@ -216,32 +216,6 @@ function TimelineBase({ events }: { events: TimelineEvent[] }) {
   );
 }
 
-export function ModeBadge({
-  mode,
-  message,
-}: {
-  mode: "real" | "mock" | null;
-  message: string;
-}) {
-  if (!mode) return null;
-  return (
-    <span
-      className={`chip ${
-        mode === "real"
-          ? "border-signal/40 bg-signal/[0.07] text-signal"
-          : "border-rule bg-surface text-muted"
-      }`}
-      title={message}
-    >
-      <span
-        className={`h-1.5 w-1.5 rounded-full ${mode === "real" ? "bg-signal" : "bg-muted/50"}`}
-        aria-hidden
-      />
-      {mode === "real" ? "live reasoning" : "mock reasoning"}
-    </span>
-  );
-}
-
 export function Running({ label }: { label: string }) {
   return (
     <span className="inline-flex items-center gap-2 text-sm text-muted">

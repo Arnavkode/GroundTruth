@@ -47,6 +47,10 @@ export interface Decision {
   spendCapUsd: number;
   /** Which store answered — "redis" means the cap is global, not per-instance. */
   store: "redis" | "memory";
+  /** Epoch ms at which the per-IP window frees a slot. Null when not limited. */
+  resetAt: number | null;
+  /** Configured limits, echoed so the UI can show "2 of 3 used" without guessing. */
+  limits: { perIpPerHour: number; dailyCalls: number; dailySpendUsd: number; perRun: number };
 }
 
 /* ─────────────────────────── configuration ────────────────────────────────*/
@@ -55,10 +59,10 @@ export function perIpLimit(): number {
   return Number(process.env.RATE_LIMIT_PER_IP_PER_HOUR ?? 3);
 }
 export function dailyCap(): number {
-  return Number(process.env.DAILY_REAL_CALL_CAP ?? 200);
+  return Number(process.env.DAILY_REAL_CALL_CAP ?? 50);
 }
 export function dailySpendCapUsd(): number {
-  return Number(process.env.DAILY_SPEND_CAP_USD ?? 5);
+  return Number(process.env.DAILY_SPEND_CAP_USD ?? 2);
 }
 export function realModeDisabled(): boolean {
   return process.env.DISABLE_REAL_MODE === "1";
@@ -99,6 +103,7 @@ export interface RedisLike {
   zadd(key: string, member: { score: number; member: string }): Promise<unknown>;
   zremrangebyscore(key: string, min: number, max: number): Promise<unknown>;
   zcard(key: string): Promise<number>;
+  zrange(key: string, start: number, stop: number, opts?: { withScores?: boolean }): Promise<(string | number)[]>;
   zrem(key: string, member: string): Promise<unknown>;
   expire(key: string, seconds: number): Promise<unknown>;
   incr(key: string): Promise<number>;
@@ -114,7 +119,12 @@ export interface RateStore {
    * Adds first, then counts, then rolls back if over — so concurrent callers
    * can never both slip past the limit.
    */
-  tryWindow(key: string, limit: number, windowMs: number, now: number): Promise<{ count: number; allowed: boolean }>;
+  tryWindow(
+    key: string,
+    limit: number,
+    windowMs: number,
+    now: number,
+  ): Promise<{ count: number; allowed: boolean; oldest: number | null }>;
   tryCounter(key: string, limit: number): Promise<{ count: number; allowed: boolean }>;
   getSpend(key: string): Promise<number>;
   addSpend(key: string, usd: number): Promise<number>;
@@ -142,13 +152,14 @@ export const memoryStore: RateStore = {
   async tryWindow(key, limit, windowMs, now) {
     const st = memoryState();
     const times = (st.windows.get(key) ?? []).filter((t) => t > now - windowMs);
+    const oldest = times.length > 0 ? times[0] : null;
     if (times.length >= limit) {
       st.windows.set(key, times);
-      return { count: times.length, allowed: false };
+      return { count: times.length, allowed: false, oldest };
     }
     times.push(now);
     st.windows.set(key, times);
-    return { count: times.length, allowed: true };
+    return { count: times.length, allowed: true, oldest: oldest ?? now };
   },
   async tryCounter(key, limit) {
     const st = memoryState();
@@ -185,12 +196,14 @@ export function redisStore(client: RedisLike): RateStore {
       await client.zremrangebyscore(key, 0, now - windowMs);
       await client.expire(key, Math.ceil(windowMs / 1000) + 60);
       const count = await client.zcard(key);
+      const head = await client.zrange(key, 0, 0, { withScores: true });
+      const oldest = head.length > 1 ? Number(head[1]) : null;
       if (count > limit) {
         // We over-added: take our own entry back out and deny.
         await client.zrem(key, member);
-        return { count: count - 1, allowed: false };
+        return { count: count - 1, allowed: false, oldest };
       }
-      return { count, allowed: true };
+      return { count, allowed: true, oldest };
     },
     async tryCounter(key, limit) {
       const count = await client.incr(key);
@@ -277,6 +290,13 @@ export async function checkRateLimit(ip: string, opts: CheckOptions = {}): Promi
     spendUsedUsd: Number(spendUsed.toFixed(4)),
     spendCapUsd: spendCap,
     store: store.kind,
+    resetAt: null as number | null,
+    limits: {
+      perIpPerHour: ipMax,
+      dailyCalls: dayMax,
+      dailySpendUsd: spendCap,
+      perRun: opts.maxCallsPerRun ?? Infinity,
+    },
   };
 
   // 1. Kill switch — flippable in the Vercel dashboard, no redeploy.
@@ -309,6 +329,7 @@ export async function checkRateLimit(ip: string, opts: CheckOptions = {}): Promi
   // 4. Dollars before calls: the cap must cover the worst case this call could
   //    cost, so an in-flight call can never push spend past the ceiling.
   if (spendUsed + WORST_CASE_CALL_USD > spendCap) {
+    base.resetAt = Date.parse(dayKey(now) + "T00:00:00Z") + DAY_SECONDS * 1000;
     return deny(
       "spend-cap-reached",
       `Daily spend cap of $${spendCap.toFixed(2)} reached ($${spendUsed.toFixed(2)} used) — falling back to mock reasoning.`,
@@ -320,6 +341,7 @@ export async function checkRateLimit(ip: string, opts: CheckOptions = {}): Promi
   const daily = await store.tryCounter(`gt:calls:${day}`, dayMax);
   base.dailyRemaining = Math.max(0, dayMax - daily.count);
   if (!daily.allowed) {
+    base.resetAt = Date.parse(dayKey(now) + "T00:00:00Z") + DAY_SECONDS * 1000;
     return deny(
       "daily-cap-reached",
       `Global daily cap of ${dayMax} real calls reached — falling back to mock reasoning.`,
@@ -330,6 +352,7 @@ export async function checkRateLimit(ip: string, opts: CheckOptions = {}): Promi
   // 6. Per-IP sliding window.
   const perIp = await store.tryWindow(`gt:ip:${ip}`, ipMax, HOUR_MS, now);
   base.ipRemaining = Math.max(0, ipMax - perIp.count);
+  base.resetAt = perIp.oldest !== null ? perIp.oldest + HOUR_MS : null;
   if (!perIp.allowed) {
     // Hand the global slot back — this request is not going to use it.
     await store.addSpend(`gt:calls:${day}:refund`, 0);

@@ -116,7 +116,7 @@ export default function Home() {
 
       {/* ── The problem ──────────────────────────────────────────────────── */}
       <section className="decor-host mt-20 border-t border-rule pt-12">
-        <ArcCluster className="decor -left-16 top-6 h-64 w-64 opacity-60" tone="#A8362C" />
+        <ArcCluster className="decor -left-16 top-6 h-64 w-64 opacity-60" tone="rgb(var(--c-flagged))" />
         <div className="above">
           <p className="text-micro uppercase tracking-widest text-flagged">The problem</p>
           <h2 className="mt-3 max-w-4xl font-display text-3xl leading-[1.15] sm:text-5xl">
@@ -306,7 +306,7 @@ export default function Home() {
       <section className="decor-host mt-20 rounded-lg border border-rule bg-surface px-6 py-8 sm:px-8">
         <ArcCluster
           className="decor -right-12 -top-10 h-56 w-56 rotate-180 opacity-60"
-          tone="#9A6511"
+          tone="rgb(var(--c-explained))"
         />
         <div className="above max-w-3xl">
           <span className="chip border-rule bg-paper text-muted">
@@ -356,7 +356,7 @@ function ModeCard({
         className={`decor -bottom-10 -right-10 h-40 w-40 rotate-180 opacity-50 transition-opacity duration-300 group-hover:opacity-100 ${
           accent === "flagged" ? "" : ""
         }`}
-        tone={accent === "flagged" ? "#A8362C" : "#2E6F4E"}
+        tone={accent === "flagged" ? "rgb(var(--c-flagged))" : "rgb(var(--c-matched))"}
       />
       <span className="above text-micro uppercase tracking-widest text-signal">{eyebrow}</span>
       <h2 className="above mt-2 font-display text-3xl leading-tight">{title}</h2>

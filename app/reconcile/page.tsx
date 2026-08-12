@@ -1,10 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { BudgetBadge, BudgetNotice } from "@/components/budget";
 import {
   CheckRow,
   ConfidenceMeter,
-  ModeBadge,
   Running,
   SourcePip,
   STATUS_META,
@@ -100,7 +100,7 @@ export default function ReconcilePage() {
             Clear
           </button>
         )}
-        <ModeBadge mode={state.mode} message={state.modeMessage} />
+        <BudgetBadge budget={state.budget} />
         <span
           className={`chip ${
             upload ? "border-signal/40 bg-signal/[0.07] text-signal" : "border-rule bg-surface text-muted"
@@ -111,10 +111,9 @@ export default function ReconcilePage() {
             ? `uploaded — ${upload.report.totalRows} rows`
             : "bundled fixtures — 16 units"}
         </span>
-        {state.mode === "mock" && (
-          <span className="text-xs text-muted">{state.modeMessage}</span>
-        )}
       </div>
+
+      <BudgetNotice budget={state.budget} />
 
       {state.error && (
         <p className="mt-6 rounded border border-flagged/40 bg-flagged/[0.06] px-4 py-3 text-sm text-flagged">

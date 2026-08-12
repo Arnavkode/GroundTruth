@@ -36,8 +36,8 @@ when any of them says no, the request is served with canned reasoning rather tha
 |---|---|---|---|
 | Kill switch | `DISABLE_REAL_MODE` | off | keep handy, see §7 |
 | Per IP, per hour | `RATE_LIMIT_PER_IP_PER_HOUR` | **3** | 3 |
-| Global calls per day | `DAILY_REAL_CALL_CAP` | 200 | 50 for the first day |
-| Global dollars per day | `DAILY_SPEND_CAP_USD` | **$5** | $2 for the first day |
+| Global calls per day | `DAILY_REAL_CALL_CAP` | **50** | 50 |
+| Global dollars per day | `DAILY_SPEND_CAP_USD` | **$2** | $2 |
 | Per upload | hard-coded `LIMITS.MAX_REAL_CALLS_PER_UPLOAD` | 10 | 10 |
 
 Read these three files, in this order:
@@ -84,7 +84,8 @@ true.
 If you do want live reasoning, in this order:
 
 1. Confirm step 4 shows `"store":"redis"`.
-2. Set the conservative caps: `DAILY_SPEND_CAP_USD=2`, `DAILY_REAL_CALL_CAP=50`.
+2. The defaults are already the conservative ones ($2/day, 50 calls/day, 3/hour/IP) — no change needed
+   unless you want them tighter still.
 3. Add `ANTHROPIC_API_KEY` in the Vercel dashboard. Detection is automatic — **no code change**.
 4. Exercise the cheapest possible path first, one dispute, one unit, one call:
 

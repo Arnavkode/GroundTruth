@@ -1,23 +1,27 @@
 import type { Config } from "tailwindcss";
 
 /**
- * Six deliberate color tokens + three status hues. See DESIGN_NOTES.md.
- * Committed light-only palette — this is an ops console, not a consumer app.
+ * Six deliberate colour tokens + three status hues, in light and dark.
+ * See DESIGN_NOTES.md. Values live in app/globals.css.
  */
 const config: Config = {
+  darkMode: "class",
   content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}"],
   theme: {
     extend: {
+      // Every token is an RGB triplet in a CSS variable, so the opacity
+      // modifiers used throughout (bg-matched/[0.06]) keep working and a theme
+      // change is a variable swap rather than a class rewrite.
       colors: {
-        paper: "#FBFAF6",
-        surface: "#FFFFFF",
-        ink: "#14161A",
-        muted: "#5D6570",
-        rule: "#E4E0D6",
-        signal: "#0F5F55",
-        matched: "#2E6F4E",
-        explained: "#9A6511",
-        flagged: "#A8362C",
+        paper: "rgb(var(--c-paper) / <alpha-value>)",
+        surface: "rgb(var(--c-surface) / <alpha-value>)",
+        ink: "rgb(var(--c-ink) / <alpha-value>)",
+        muted: "rgb(var(--c-muted) / <alpha-value>)",
+        rule: "rgb(var(--c-rule) / <alpha-value>)",
+        signal: "rgb(var(--c-signal) / <alpha-value>)",
+        matched: "rgb(var(--c-matched) / <alpha-value>)",
+        explained: "rgb(var(--c-explained) / <alpha-value>)",
+        flagged: "rgb(var(--c-flagged) / <alpha-value>)",
       },
       fontFamily: {
         display: ["var(--font-geist-sans)", "system-ui", "sans-serif"],

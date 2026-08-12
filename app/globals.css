@@ -3,8 +3,34 @@
 @tailwind utilities;
 
 @layer base {
+  /* Light — warm paper. The original committed palette. */
   :root {
+    --c-paper: 251 250 246;
+    --c-surface: 255 255 255;
+    --c-ink: 20 22 26;
+    --c-muted: 93 101 112;
+    --c-rule: 228 224 214;
+    --c-signal: 15 95 85;
+    --c-matched: 46 111 78;
+    --c-explained: 154 101 17;
+    --c-flagged: 168 54 44;
     color-scheme: light;
+  }
+
+  /* Dark — the same room with the lights off, not a different room. The warm
+     cast is kept (paper is a warm near-black, ink a warm off-white) and the
+     three status hues are lifted for contrast against a dark ground. */
+  .dark {
+    --c-paper: 15 17 19;
+    --c-surface: 22 25 28;
+    --c-ink: 232 230 224;
+    --c-muted: 154 163 171;
+    --c-rule: 42 47 52;
+    --c-signal: 79 179 163;
+    --c-matched: 95 191 135;
+    --c-explained: 217 164 65;
+    --c-flagged: 224 119 107;
+    color-scheme: dark;
   }
 
   html {
@@ -36,7 +62,7 @@
   }
 
   ::selection {
-    background: #0f5f5522;
+    background: rgb(var(--c-signal) / 0.18);
   }
 }
 
@@ -59,7 +85,7 @@
   }
 
   .btn-primary {
-    @apply btn bg-signal text-paper hover:bg-[#0c4d45];
+    @apply btn bg-signal text-paper transition-opacity hover:opacity-90;
   }
 
   .btn-quiet {
@@ -88,8 +114,8 @@
   /* Fine measurement grid, used behind hero and empty states. */
   .grid-paper {
     background-image:
-      linear-gradient(to right, rgba(20, 22, 26, 0.045) 1px, transparent 1px),
-      linear-gradient(to bottom, rgba(20, 22, 26, 0.045) 1px, transparent 1px);
+      linear-gradient(to right, rgb(var(--c-ink) / 0.045) 1px, transparent 1px),
+      linear-gradient(to bottom, rgb(var(--c-ink) / 0.045) 1px, transparent 1px);
     background-size: 34px 34px;
   }
 
@@ -104,7 +130,7 @@
     background: linear-gradient(
       90deg,
       transparent,
-      rgba(255, 255, 255, 0.85),
+      rgb(var(--c-ink) / 0.07),
       transparent
     );
   }

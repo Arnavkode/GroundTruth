@@ -633,3 +633,86 @@ distinguishes missing evidence from agreement, and says so.
 - **The real Anthropic code path**, still — no key has ever been present. The spend accounting
   (`recordSpend`) reads `response.usage`, so it is unexercised too.
 
+---
+
+# ADDENDUM 2 — dark mode, strict limits, and a real rate-limit UI
+
+Three things, after the deployment went public (SSO off, anonymous 200 confirmed).
+
+## 1. Stricter defaults
+
+| | was | now |
+|---|---|---|
+| `DAILY_REAL_CALL_CAP` | 200 | **50** |
+| `DAILY_SPEND_CAP_USD` | $5 | **$2** |
+| `RATE_LIMIT_PER_IP_PER_HOUR` | 3 | 3 |
+| live calls per run | 10 | 10 |
+
+At the model's list price a full 16-unit reconciliation costs roughly $0.15–0.30, so $2/day is a few
+dozen full runs — enough for a reviewer to use the thing properly, small enough that the worst case
+is uninteresting.
+
+## 2. The limit is now a designed state, not a silent downgrade
+
+`Decision` gained `resetAt`, `limits` and `store`; the SSE `meta` event carries a `BudgetSnapshot`,
+and a new **`limit` event fires mid-run** when a cap trips partway through a batch. Silently
+degrading the remaining units is precisely the behaviour that makes a rate limit feel like a bug.
+
+`components/budget.tsx` renders it in theme: severity-toned (neutral / amber / red), naming which
+limit was hit, counting down to reset, and stating outright that nothing on the page is degraded
+output — because it isn't. The checks, confidence and buckets never depended on a live model.
+
+Verified against a running server with a fake key pointed at a dead local endpoint, so the limiter
+counts calls with nothing leaving the machine:
+
+```
+$ curl -N "localhost:3000/api/reconcile?paced=0" -H "x-forwarded-for: 198.51.100.77" | grep '"type":"limit"'
+"type":"limit","budget":{"mode":"mock","reason":"ip-limit-exceeded",
+"message":"Rate limit reached (2 live runs per hour per IP) — falling back to mock reasoning.",
+"ipRemaining":0,"dailyRemaining":47,"spendUsedUsd":0,"spendCapUsd":2, ...}
+```
+
+The reset clock the UI counts down from:
+
+```
+8. The UI gets a usable reset clock and the configured limits
+----------------------------------------------------------------------------------------------
+  reason=ip-limit-exceeded resetAt=+55min limits={"perIpPerHour":3,"dailyCalls":200,"dailySpendUsd":5,"perRun":null} store=redis
+  [PASS] a reset time is reported when limited
+  [PASS] reset is within the hour window — 55 min
+  [PASS] configured limits are echoed for display
+  [PASS] the store kind is reported so the UI can warn
+
+----------------------------------------------------------------------------------------------
+```
+
+Screenshots of the notice in both themes are in `shots/reconcile-light.png` and
+`shots/reconcile-dark.png`.
+
+## 3. Dark mode
+
+Every colour token became an RGB triplet in a CSS variable, so Tailwind's opacity modifiers
+(`bg-matched/[0.06]`, used heavily) keep working and the theme is a variable swap rather than a class
+rewrite. The decorative SVGs read the same variables, so the geometry themes with everything else.
+An inline boot script applies the class before first paint — no flash. It follows the OS until the
+user picks, then remembers.
+
+No hardcoded hex remains in `app/` or `components/`.
+
+## Verification
+
+```
+resolver     16 units — 6 matched / 5 explained / 5 flagged   (unchanged)
+guardrails   25 assertions   PASS
+ingest       41 assertions   PASS
+e2e          76 assertions   PASS
+responsive   375/768/1024/1440 x light/dark — 8 combinations   PASS
+build        zero errors
+```
+
+The responsive suite now runs every width in both themes and asserts the correct palette is applied
+on first paint.
+
+One stale detail fixed along the way: the footer's spend-limit figures were hardcoded to the old
+10/hour and 200/day. It now reads the live configuration.
+

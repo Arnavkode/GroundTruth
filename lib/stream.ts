@@ -20,7 +20,16 @@ const PACE_SINGLE = { source: 70, check: 100, reason: 320, unit: 40 };
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export type StreamEvent =
-  | { type: "meta"; mode: "real" | "mock"; message: string; ipRemaining: number; dailyRemaining: number; total: number; origin: "fixtures" | "upload"; datasetLabel: string }
+  | {
+      type: "meta";
+      mode: "real" | "mock";
+      message: string;
+      total: number;
+      origin: "fixtures" | "upload";
+      datasetLabel: string;
+      budget: BudgetSnapshot;
+    }
+  | { type: "limit"; budget: BudgetSnapshot }
   | { type: "unit-start"; ref: string; index: number; total: number; label: string }
   | { type: "source"; ref: string; source: string; detail: string; found: boolean }
   | { type: "check"; ref: string; label: string; outcome: string; detail: string; kind: string }
@@ -30,6 +39,40 @@ export type StreamEvent =
   | { type: "rebuttal"; rebuttal: ReturnType<typeof buildRebuttal>; factors: ReturnType<typeof rebuttalFactors> }
   | { type: "error"; message: string }
   | { type: "done" };
+
+/** Everything the UI needs to explain the current spend state, in one object. */
+export interface BudgetSnapshot {
+  mode: "real" | "mock";
+  reason: Decision["reason"];
+  message: string;
+  ipRemaining: number;
+  dailyRemaining: number;
+  spendUsedUsd: number;
+  spendCapUsd: number;
+  store: "redis" | "memory";
+  resetAt: number | null;
+  limits: Decision["limits"];
+  /** Live calls this run has made, and the ceiling for one run. */
+  runUsed: number;
+  runMax: number;
+}
+
+function snapshot(d: Decision, runUsed: number, runMax: number): BudgetSnapshot {
+  return {
+    mode: d.mode,
+    reason: d.reason,
+    message: d.message,
+    ipRemaining: d.ipRemaining,
+    dailyRemaining: d.dailyRemaining,
+    spendUsedUsd: d.spendUsedUsd,
+    spendCapUsd: d.spendCapUsd,
+    store: d.store,
+    resetAt: d.resetAt,
+    limits: d.limits,
+    runUsed,
+    runMax,
+  };
+}
 
 function encode(event: StreamEvent): Uint8Array {
   return new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`);
@@ -122,6 +165,12 @@ async function resolveOne(
     callsThisRun: budget.callsUsed,
     maxCallsPerRun: budget.maxCalls,
   });
+  // A cap can trip midway through a batch. When the answer changes, say so —
+  // silently degrading the rest of a run is exactly the behaviour that makes a
+  // rate limit feel like a bug.
+  if (decision.reason !== budget.latest.reason || decision.mode !== budget.latest.mode) {
+    send({ type: "limit", budget: snapshot(decision, budget.callsUsed, budget.maxCalls) });
+  }
   budget.latest = decision;
 
   let judgement;
@@ -181,11 +230,10 @@ export function reconcileStream(
           type: "meta",
           mode: opening.mode,
           message: opening.message,
-          ipRemaining: opening.ipRemaining,
-          dailyRemaining: opening.dailyRemaining,
           total: bundles.length,
           origin: dataset.origin,
           datasetLabel: dataset.label,
+          budget: snapshot(opening, 0, budget.maxCalls),
         });
 
         const counts = { matched: 0, explained: 0, flagged: 0 };
@@ -257,11 +305,10 @@ export function investigateStream(
           type: "meta",
           mode: opening.mode,
           message: opening.message,
-          ipRemaining: opening.ipRemaining,
-          dailyRemaining: opening.dailyRemaining,
           total: 1,
           origin: dataset.origin,
           datasetLabel: dataset.label,
+          budget: snapshot(opening, 0, budget.maxCalls),
         });
         send({
           type: "unit-start",

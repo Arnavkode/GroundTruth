@@ -4,6 +4,9 @@ import { GeistSans } from "geist/font/sans";
 import Link from "next/link";
 import { BackdropField } from "@/components/decor";
 import { NavLinkIndicator, PageTransition } from "@/components/PageTransition";
+import { ThemeToggle, themeBootScript } from "@/components/theme";
+import { dailyCap, dailySpendCapUsd, perIpLimit } from "@/lib/ratelimit";
+import { LIMITS } from "@/lib/ingest";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -14,7 +17,11 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`}>
+    <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`} suppressHydrationWarning>
+      <head>
+        {/* Applied before first paint so the theme never flashes. */}
+        <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
+      </head>
       <body>
         <a
           href="#main"
@@ -58,6 +65,8 @@ function SiteHeader() {
               <NavLinkIndicator href={l.href} />
             </Link>
           ))}
+          <span className="mx-1 h-5 w-px bg-rule" aria-hidden />
+          <ThemeToggle />
         </nav>
       </div>
     </header>
@@ -68,11 +77,11 @@ function SiteHeader() {
 function Mark() {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <circle cx="12" cy="12" r="11" stroke="#0F5F55" strokeOpacity="0.3" />
-      <path d="M3 6 C 10 6 10 12 12 12" stroke="#2E6F4E" strokeWidth="1.5" strokeLinecap="round" />
-      <path d="M3 12 H 12" stroke="#9A6511" strokeWidth="1.5" strokeLinecap="round" />
-      <path d="M3 18 C 10 18 10 12 12 12" stroke="#A8362C" strokeWidth="1.5" strokeLinecap="round" />
-      <circle cx="12" cy="12" r="2.5" fill="#0F5F55" />
+      <circle cx="12" cy="12" r="11" stroke="rgb(var(--c-signal))" strokeOpacity="0.3" />
+      <path d="M3 6 C 10 6 10 12 12 12" stroke="rgb(var(--c-matched))" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M3 12 H 12" stroke="rgb(var(--c-explained))" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M3 18 C 10 18 10 12 12 12" stroke="rgb(var(--c-flagged))" strokeWidth="1.5" strokeLinecap="round" />
+      <circle cx="12" cy="12" r="2.5" fill="rgb(var(--c-signal))" />
     </svg>
   );
 }
@@ -106,8 +115,10 @@ function SiteFooter() {
           <p className="text-micro uppercase tracking-widest text-muted">Spend limits</p>
           <dl className="mt-2 space-y-1.5 text-xs text-muted">
             {[
-              ["Per IP, per hour", "10 real runs"],
-              ["Global daily cap", "200 real calls"],
+              ["Per IP, per hour", `${perIpLimit()} live runs`],
+              ["Global daily cap", `${dailyCap()} live calls`],
+              ["Daily spend cap", `$${dailySpendCapUsd().toFixed(2)}`],
+              ["Live calls per run", `${LIMITS.MAX_REAL_CALLS_PER_UPLOAD} max`],
               ["Tokens per call", "1,200 max"],
               ["On exhaustion", "falls back to mock"],
             ].map(([k, v]) => (

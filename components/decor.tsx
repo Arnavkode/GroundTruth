@@ -8,11 +8,16 @@
  * contributes to layout width.
  */
 
-const INK = "#14161A";
-const SIGNAL = "#0F5F55";
-const MATCHED = "#2E6F4E";
-const EXPLAINED = "#9A6511";
-const FLAGGED = "#A8362C";
+/**
+ * Read from the same CSS variables as the rest of the palette, so the
+ * decorative geometry follows the theme instead of being repainted for it.
+ */
+const INK = "rgb(var(--c-ink))";
+const SIGNAL = "rgb(var(--c-signal))";
+const MATCHED = "rgb(var(--c-matched))";
+const EXPLAINED = "rgb(var(--c-explained))";
+const FLAGGED = "rgb(var(--c-flagged))";
+const alpha = (token: string, a: number) => `rgb(var(${token}) / ${a})`;
 
 /**
  * Full-page ambient wash.
@@ -29,9 +34,9 @@ export function BackdropField() {
       aria-hidden
       style={{
         backgroundImage: [
-          `radial-gradient(52rem 40rem at 108% -6%, ${SIGNAL}12, transparent 62%)`,
-          `radial-gradient(46rem 38rem at -12% 46%, ${EXPLAINED}0f, transparent 60%)`,
-          `radial-gradient(40rem 34rem at 88% 108%, ${FLAGGED}0d, transparent 62%)`,
+          `radial-gradient(52rem 40rem at 108% -6%, ${alpha("--c-signal", 0.07)}, transparent 62%)`,
+          `radial-gradient(46rem 38rem at -12% 46%, ${alpha("--c-explained", 0.06)}, transparent 60%)`,
+          `radial-gradient(40rem 34rem at 88% 108%, ${alpha("--c-flagged", 0.05)}, transparent 62%)`,
         ].join(", "),
       }}
     >
@@ -136,7 +141,7 @@ export function ResolverDiagram({ className = "" }: { className?: string }) {
 
       {/* Resolver node */}
       <g className="animate-popIn" style={{ animationDelay: "560ms" }}>
-        <circle cx="286" cy="166" r="34" fill="#FBFAF6" stroke={SIGNAL} strokeOpacity="0.35" />
+        <circle cx="286" cy="166" r="34" fill="rgb(var(--c-paper))" stroke={SIGNAL} strokeOpacity="0.35" />
         <circle cx="286" cy="166" r="24" stroke={SIGNAL} strokeOpacity="0.2" strokeDasharray="2 6" />
         <circle cx="286" cy="166" r="7" fill={SIGNAL} fillOpacity="0.85" />
       </g>
