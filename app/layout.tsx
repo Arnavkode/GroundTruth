@@ -5,8 +5,7 @@ import Link from "next/link";
 import { BackdropField } from "@/components/decor";
 import { NavLinkIndicator, PageTransition } from "@/components/PageTransition";
 import { ThemeToggle, themeBootScript } from "@/components/theme";
-import { dailyCap, FREE_TIER, perIpLimit } from "@/lib/ratelimit";
-import { LIMITS } from "@/lib/ingest";
+import { dailyCap, FREE_TIER, perIpLimit, perRunLimit } from "@/lib/ratelimit";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -117,10 +116,10 @@ function SiteFooter() {
           <p className="text-micro uppercase tracking-widest text-muted">Spend limits</p>
           <dl className="mt-2 space-y-1.5 text-xs text-muted">
             {[
-              ["Per IP, per hour", `${perIpLimit()} live runs`],
+              ["Per IP, per hour", `${perIpLimit()} live calls`],
               ["Global daily cap", `${dailyCap()} live calls`],
               ["Provider free tier", `${FREE_TIER.rpd} calls/day`],
-              ["Live calls per run", `${LIMITS.MAX_REAL_CALLS_PER_UPLOAD} max`],
+              ["Live calls per run", `${perRunLimit()} max`],
               ["Tokens per call", "1,200 max"],
               ["On exhaustion", "falls back to mock"],
             ].map(([k, v]) => (

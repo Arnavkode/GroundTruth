@@ -184,10 +184,10 @@ degrades.
 
 | Trigger | Env var | Default |
 |---|---|---|
-| Kill switch | `DISABLE_REAL_MODE=1` | off — flip it in the dashboard, no redeploy |
-| Per IP, per hour | `RATE_LIMIT_PER_IP_PER_HOUR` | 3 — keyed on the platform-set client IP, not the spoofable `x-forwarded-for` |
+| Kill switch | `DISABLE_REAL_MODE=1` | off — set it in the dashboard, then redeploy for it to apply |
+| Per IP, per hour | `RATE_LIMIT_PER_IP_PER_HOUR` | 3 — **live calls, one per transaction reasoned**, keyed on the platform-set client IP rather than the spoofable `x-forwarded-for` |
 | Global calls per day | `DAILY_REAL_CALL_CAP` | 300 (free tier states ~1000) |
-| Live calls per upload | fixed | 10 |
+| Live calls per run | `MAX_REAL_CALLS_PER_RUN` | 16 — the size of the fixture set, so one reconcile resolves live end to end |
 | Uploads per IP, per hour | `RATE_LIMIT_INGEST_PER_HOUR` | 20 — a real 429, see below |
 | Provider 429 | — | latches live mode off for the rest of the day |
 

@@ -56,9 +56,9 @@ import {
   type RedisLike,
   redisCredentials,
   checkIngestLimit,
+  perRunLimit,
 } from "../lib/ratelimit";
 import { isQuotaError, QuotaExhaustedError } from "../lib/resolver/llm";
-import { LIMITS } from "../lib/ingest";
 
 let failures = 0;
 function assert(label: string, cond: boolean, detail = "") {
@@ -171,7 +171,7 @@ async function main() {
   console.log("GROUNDTRUTH — PUBLIC DEPLOYMENT GUARDRAILS (Gemini free tier)");
   console.log(
     `per-IP ${perIpLimit()}/hr · daily cap ${dailyCap()} calls · free tier ${FREE_TIER.rpm} RPM / ` +
-      `${FREE_TIER.rpd} RPD · per-run ${LIMITS.MAX_REAL_CALLS_PER_UPLOAD} · key detected ${hasRealApiKey()}`,
+      `${FREE_TIER.rpd} RPD · per-run ${perRunLimit()} · key detected ${hasRealApiKey()}`,
   );
   console.log(
     `Headroom: our daily cap is ${((dailyCap() / FREE_TIER.rpd) * 100).toFixed(0)}% of Google's free RPD, ` +
@@ -290,14 +290,20 @@ async function main() {
   for (let row = 0; row < 20; row += 1) {
     const d = await checkRateLimit("203.0.113.77", {
       callsThisRun: used,
-      maxCallsPerRun: LIMITS.MAX_REAL_CALLS_PER_UPLOAD,
+      maxCallsPerRun: perRunLimit(),
     });
     modes.push(d.mode);
     if (d.mode === "real") used += 1;
   }
   console.log(`  20-row upload, per-IP budget 1000 → ${used} live, ${modes.filter((m) => m === "mock").length} mock`);
-  assert(`capped at ${LIMITS.MAX_REAL_CALLS_PER_UPLOAD}`, used === LIMITS.MAX_REAL_CALLS_PER_UPLOAD, `got ${used}`);
-  assert("remainder routed to mock, not refused", modes.slice(10).every((m) => m === "mock"));
+  assert(`capped at ${perRunLimit()}`, used === perRunLimit(), `got ${used}`);
+  // Derived from the cap rather than hard-coded: an earlier version pinned the
+  // slice at 10 and started failing the moment the default moved.
+  assert(
+    "remainder routed to mock, not refused",
+    modes.slice(perRunLimit()).every((m) => m === "mock"),
+  );
+  assert("the fixture set fits inside one run", perRunLimit() >= 16, `${perRunLimit()} < 16 units`);
   process.env.RATE_LIMIT_PER_IP_PER_HOUR = "3";
 
   // ── 8. Key detection ──────────────────────────────────────────────────────

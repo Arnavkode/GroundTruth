@@ -12,6 +12,7 @@ import {
   markQuotaExhausted,
   recordUsage,
   type Decision,
+  perRunLimit,
 } from "./ratelimit";
 import { disputes } from "./fixtures";
 
@@ -241,12 +242,12 @@ export function reconcileStream(
       try {
         const opening = await checkRateLimit(ip, {
           callsThisRun: 0,
-          maxCallsPerRun: LIMITS.MAX_REAL_CALLS_PER_UPLOAD,
+          maxCallsPerRun: perRunLimit(),
         });
         const budget: RunBudget = {
           ip,
           callsUsed: 0,
-          maxCalls: LIMITS.MAX_REAL_CALLS_PER_UPLOAD,
+          maxCalls: perRunLimit(),
           latest: opening,
         };
         send({
@@ -316,12 +317,12 @@ export function investigateStream(
 
         const opening = await checkRateLimit(ip, {
           callsThisRun: 0,
-          maxCallsPerRun: LIMITS.MAX_REAL_CALLS_PER_UPLOAD,
+          maxCallsPerRun: perRunLimit(),
         });
         const budget: RunBudget = {
           ip,
           callsUsed: 0,
-          maxCalls: LIMITS.MAX_REAL_CALLS_PER_UPLOAD,
+          maxCalls: perRunLimit(),
           latest: opening,
         };
         send({

@@ -17,7 +17,7 @@ import { Redis } from "@upstash/redis";
  *   3. Quota exhausted            a 429 was seen today; stop trying until tomorrow
  *   4. Per IP, per hour           RATE_LIMIT_PER_IP_PER_HOUR (default 3)
  *   5. Global calls per day       DAILY_REAL_CALL_CAP (default 300, well under the free RPD)
- *   6. Per run                    bounds one upload's share of the day
+ *   6. Per run                    MAX_REAL_CALLS_PER_RUN (default 16 = the fixture set)
  *
  * Every one of them fails the same safe way: the request is served with canned
  * reasoning rather than erroring.
@@ -82,6 +82,22 @@ export function perIpLimit(): number {
 /** Sized at roughly a third of the free RPD so we never approach Google's own ceiling. */
 export function dailyCap(): number {
   return Number(process.env.DAILY_REAL_CALL_CAP ?? 300);
+}
+
+/**
+ * Most live calls one run may make, whatever the per-IP budget allows.
+ *
+ * This is the cap that actually decides whether a batch resolves fully live,
+ * and it binds before the per-IP one does: raising the hourly limit alone
+ * changes nothing if a single run still stops at ten. The default matches the
+ * bundled fixture set (16 units) so a reviewer sees the whole thing reasoned
+ * rather than the first ten units live and the rest canned.
+ *
+ * It still exists because an upload may carry up to 50 rows, and one upload
+ * must not be able to spend the whole day's budget by itself.
+ */
+export function perRunLimit(): number {
+  return Number(process.env.MAX_REAL_CALLS_PER_RUN ?? 16);
 }
 
 export function realModeDisabled(): boolean {
@@ -385,7 +401,7 @@ export async function checkRateLimit(ip: string, opts: CheckOptions = {}): Promi
   if (!perIp.allowed) {
     return deny(
       "ip-limit-exceeded",
-      `Rate limit reached (${ipMax} live runs per hour per IP) — falling back to mock reasoning.`,
+      `Rate limit reached (${ipMax} live calls per hour per IP — one per transaction reasoned) — falling back to mock reasoning.`,
       base,
     );
   }

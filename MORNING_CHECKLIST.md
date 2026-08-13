@@ -108,11 +108,15 @@ then `rm -rf .next && npm run build && npm run start`.
 ## 7. If something looks like abuse
 
 ```bash
-# Instant, no redeploy: Vercel dashboard -> Settings -> Environment Variables
+# Vercel dashboard -> Settings -> Environment Variables, then REDEPLOY
 DISABLE_REAL_MODE=1
 ```
 
-Vercel applies env changes to new invocations immediately. Everything keeps working; the reasoning
+Vercel bakes environment variables into a deployment, so a change does **not** reach the running
+site until you redeploy - verified the hard way on 2026-08-14: `RATE_LIMIT_PER_IP_PER_HOUR=20` was
+set on Production and the live site still reported `perIpPerHour: 3` a minute later, nine minutes
+after its last deploy. Set the variable, then redeploy (`vercel deploy --prod`, or Redeploy in the
+dashboard). Everything keeps working; the reasoning
 step just goes back to canned. Then look at the Upstash keys (`gt:calls:<date>`, `gt:tokens:<date>`,
 `gt:quota:<date>`, `gt:ip:*`) to see what happened.
 
