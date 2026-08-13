@@ -14,7 +14,7 @@ team rather than 200. I attempted to disable that (`vercel project protection di
 publicly reachable is not something it will let an unattended agent do. That is the correct call;
 it just means the last step is yours. Exact command is line 1 of `MORNING_CHECKLIST.md`.
 
-**Preview URL:** https://groundtruth-jeiu5o4b6-arnav-guptas-projects-4ac946ea.vercel.app
+**Live URL:** https://groundtruth-swart-one.vercel.app (production alias — follows the newest deploy)
 (the original overnight deploy was `groundtruth-a0coeh599-…`; this is the current one)
 (clickable and fully working while logged into the Vercel team; 302 → SSO otherwise)
 
@@ -1439,3 +1439,90 @@ resolver           6 matched / 5 explained / 5 flagged - unchanged
 build + tsc        clean
 live               perRun 16 - perIp 20 - store redis - live reasoning restored
 ```
+
+---
+
+# ADDENDUM 6 - second-pass punch list
+
+The review's headline finding was correct and entirely self-inflicted: the fix pass was deployed and
+the README still pointed at a deployment from hours earlier. Every fix was real and none of it was
+reachable by anyone following the link.
+
+## 1. The stale link, fixed so it cannot recur
+
+The mistake was pinning a *deployment hash*. Vercel already maintains a production alias that follows
+the newest production deploy, and the project had one the whole time:
+
+```
+https://groundtruth-swart-one.vercel.app
+```
+
+`README.md` and `BUILD_LOG.md` now name that alias instead of a hash. It cannot go stale, because
+every `vercel deploy --prod` re-points it. Verified after deploying HEAD:
+
+```
+perRun 16 | perIp 20 | store redis
+fitted flags in SSE:               16
+basis on a bundled dispute:        "authored"
+'why not AUC' in shipped bundle:   1
+'hand-picked' in shipped bundle:   1
+'hand-authored case' in bundle:    1
+'Records this case was written from': 1
+```
+
+The last four are checked in the JavaScript actually served, not the HTML, because `ScoreBreakdown`
+and the basis chip are client-rendered and would show as absent in a naive `curl | grep`.
+
+## 2. The README contradicted the code on 429 behaviour
+
+Three places still described the day-long latch, including inside the paragraph rewritten for
+honesty - the exact failure this pass existed to eliminate. All three now describe the 15-minute
+cooldown and why the ambiguity exists (Gemini returns 429 for both "1000 today" and "15 this minute"
+and does not reliably distinguish them).
+
+## 3. `npm run resolver` now asserts instead of printing
+
+It printed 16 resolutions and asserted nothing, so "16 hand-verified cases" meant 16 outputs someone
+read once. It now pins **status and confidence to the whole percent for every bundled unit**, plus:
+the 6/5/5 bucket split; that every flagged unit has a check that actually conflicts or is missing,
+rather than having drifted under the threshold with everything agreeing; and that the two identical
+claimants score *identically* and neither is resolved.
+
+Confidence is pinned deliberately, not just the bucket - both fits feed it, so any accidental change
+to a weight, the intercept, a cap or the calibration map now fails loudly. Proven to bite by
+perturbing one expected value:
+
+```
+  [FAIL] TXN-1006  flagged  38% - confidence is 37%, expected 38%
+  1 ASSERTION(S) FAILED        exit=1
+```
+
+Folded into `npm run verify`, so the gate includes it.
+
+## 4. The calibration panel, captured
+
+The review's sharpest practical point: `CalibrationPanel` is the build's best rigor artifact and no
+visitor had ever seen it render. The free tier turned out **not** to be spent - a direct call
+answered immediately - and the first local attempt still showed mock because a stale `next start`
+from an earlier command was holding port 3000 with `FORCE_MOCK_MODE=1`. Same trap as earlier in this
+build; killing the listener fixed it.
+
+```
+CalibrationPanel rendered: true
+provenance shown: real
+```
+
+`docs/calibration-panel.png` is now committed and linked from the README: the model stated **0.95**,
+Fit 2 raises it to **1.00** as under-confident at that level, against 200 outcomes with known ground
+truth. A judge can now see the artifact whether or not quota is available when they visit.
+
+Worth naming the underlying cause rather than only the symptom: a browser run is paced and stays
+under 15 RPM comfortably, but an unpaced `?paced=0` batch fires 16 calls in well under a minute and
+trips the per-minute limit - which is what my own verification kept doing to the deployment. The
+cooldown recovers from it automatically now; a global RPM pacer would prevent it, and has not been
+built.
+
+## 5. Repo noise
+
+`.logs/` was already gitignored and never tracked; the scratch files were local only, and are
+deleted. `docs/` is tracked deliberately - it holds the two captured artifacts.

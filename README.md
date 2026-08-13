@@ -195,16 +195,19 @@ degrades.
 | Global calls per day | `DAILY_REAL_CALL_CAP` | 300 (free tier states ~1000) |
 | Live calls per run | `MAX_REAL_CALLS_PER_RUN` | 16 — the size of the fixture set, so one reconcile resolves live end to end |
 | Uploads per IP, per hour | `RATE_LIMIT_INGEST_PER_HOUR` | 20 — a real 429, see below |
-| Provider 429 | — | latches live mode off for the rest of the day |
+| Provider 429 | — | 15-minute cooldown, then live reasoning is retried automatically |
 
 - **`/api/ingest` is limited separately, and refuses rather than degrading.** It makes no model
   calls, so charging it to the live-reasoning budget would let a few CSV uploads silently burn a
   visitor's ability to see real reasoning at all — separate key, separate limit. And unlike the
   resolver there is no canned fallback for validating somebody's file, so it returns a real `429`
   with `Retry-After`. The message lands in the same in-theme error list the row-level errors use.
-- **A single quota error latches.** Retrying into an exhausted quota is waste, and looks like abuse
-  from the provider's side, so the first `RESOURCE_EXHAUSTED` turns live reasoning off until the
-  daily reset and logs it loudly.
+- **A single 429 backs off for 15 minutes, then retries.** Gemini returns 429 both for "1000 requests
+  today" and for "15 requests this minute", and does not reliably distinguish them — one unpaced
+  16-unit batch is enough to trip the per-minute limit. This used to disable live reasoning until
+  midnight UTC, which meant a single burst cost hours of needless degradation. A cooldown handles both:
+  a rate spike recovers by itself, and genuine daily exhaustion simply re-latches on the next attempt,
+  at a cost of one wasted call per window. Logged loudly either way.
 - Token usage is counted and surfaced for observability, against a stated free-tier ceiling of
   ~15 RPM / 1000 RPD / 250k TPM (confirmed 2026-08-13 — see `DECISIONS.md`).
 - The limiter is **Upstash Redis** when `UPSTASH_REDIS_REST_URL` / `_TOKEN` are set, and in-memory
@@ -245,11 +248,19 @@ npx tsx scripts/test-responsive.ts   # 375 / 768 / 1024 / 1440px
 
 ## Live demo
 
-https://groundtruth-cl4upk4dd-arnav-guptas-projects-4ac946ea.vercel.app
+**https://groundtruth-swart-one.vercel.app**
+
+That is the project's production alias, not a deployment hash — it follows the newest production deploy automatically, so it cannot go stale the way a pinned URL did.
 
 Publicly reachable, with Upstash-backed global rate limits (`"store":"redis"`, confirmed against the deployment). Live reasoning runs on Gemini's free tier **when quota allows** — 20 live calls per IP per hour, one per transaction reasoned, against a global cap of 300/day.
 
-Whether any given visitor sees live or canned reasoning depends on what is left. That is the design, not a caveat: the free tier has no billing account behind it, so when the provider's quota is exhausted the first 429 latches live mode off for the rest of the UTC day and every run is served from canned reasoning instead. **Nothing degrades but the prose** — the checks, the fitted weights, the confidence and the buckets are computed from the data either way, and the UI says which it is on every resolution.
+Whether any given visitor sees live or canned reasoning depends on what is left, and on a free tier that is frequently nothing. That is the design, not a caveat: there is no billing account behind the key, so when the provider returns a 429 the app backs off for 15 minutes and retries rather than assuming the day is gone. **Nothing degrades but the prose** — the checks, the fitted weights, the confidence and the buckets are computed from the data either way, and every resolution says on its face which it got.
+
+If you want to see the live path with certainty rather than luck, run it locally with your own key: `GEMINI_API_KEY=… npm run start`. The calibration panel only renders on a live resolution, and it is the most load-bearing thing in the build — so here it is, captured from a real run rather than described:
+
+![Calibration panel from a live run](docs/calibration-panel.png)
+
+*The model stated 0.95; Fit 2 says it is under-confident at that level and raises it to 1.00, against 200 live calls with known ground truth. [Full page from the same run](docs/live-investigate.png).*
 
 ## Project structure
 
