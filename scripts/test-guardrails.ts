@@ -395,7 +395,41 @@ async function main() {
   if (savedIngest === undefined) delete process.env.RATE_LIMIT_INGEST_PER_HOUR;
   else process.env.RATE_LIMIT_INGEST_PER_HOUR = savedIngest;
 
-  header("11. Client IP extraction — the per-IP cap is only as good as this");
+  // ── 11. The ordering that decides whether one IP can starve everyone ──────
+  header("11. An IP-level denial must not spend the GLOBAL daily budget");
+  shared.flush();
+  __setStoreForTests(redisStore(shared));
+  await __resetRateLimit();
+  process.env.RATE_LIMIT_PER_IP_PER_HOUR = "3";
+
+  const attacker = "203.0.113.200";
+  const t2 = Date.now();
+  let attackerReal = 0;
+  for (let i = 0; i < 60; i += 1) {
+    const d = await checkRateLimit(attacker, { now: t2 });
+    if (d.mode === "real") attackerReal += 1;
+  }
+  const spentGlobally = (await currentUsage()).calls;
+  console.log(`  one IP looping 60 times → ${attackerReal} live calls for itself`);
+  console.log(`  global daily counter afterwards: ${spentGlobally} (was ${attackerReal} expected)`);
+  assert("the attacker still only got its own per-IP allowance", attackerReal === perIpLimit());
+  assert(
+    "a refused request does NOT consume a global daily slot",
+    spentGlobally === attackerReal,
+    `${spentGlobally} spent for ${attackerReal} real calls — 57 wasted before the fix`,
+  );
+
+  // And the budget it did not spend is still there for everybody else.
+  const bystander = await checkRateLimit("198.51.100.222", { now: t2 });
+  console.log(`  a different visitor afterwards → ${bystander.mode} (${bystander.reason})`);
+  assert("another visitor still gets live reasoning", bystander.mode === "real");
+  assert(
+    "the day's remaining budget is essentially untouched",
+    bystander.dailyRemaining >= dailyCap() - perIpLimit() - 1,
+    `${bystander.dailyRemaining} of ${dailyCap()} left`,
+  );
+
+  header("12. Client IP extraction — the per-IP cap is only as good as this");
   // x-forwarded-for is client-supplied and Vercel appends to it rather than
   // replacing it, so trusting the left-most entry lets any caller mint a fresh
   // bucket per request. Verified the hard way against the live deployment.
@@ -426,12 +460,12 @@ async function main() {
   assert("falls back to x-real-ip", clientIp(new Headers({ "x-real-ip": "198.51.100.9" })) === "198.51.100.9");
   assert("no headers at all still yields a key", clientIp(new Headers()) === "0.0.0.0");
 
-  // ── 12. Credential names ──────────────────────────────────────────────────
+  // ── 13. Credential names ──────────────────────────────────────────────────
   // Upstash arrives under two different names depending on how it was connected.
   // Reading only one is how a deployment ends up silently in memory mode while
   // the dashboard reports Redis connected — the exact failure the store exists
   // to prevent, and one that no other assertion here would catch.
-  header("12. Redis credentials are found under either naming convention");
+  header("13. Redis credentials are found under either naming convention");
   const savedEnv = {
     u: process.env.UPSTASH_REDIS_REST_URL,
     t: process.env.UPSTASH_REDIS_REST_TOKEN,

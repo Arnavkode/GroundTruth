@@ -39,7 +39,7 @@ export default function HowItWorks() {
       <section className="card mt-10 border-explained/35 bg-explained/[0.06] px-6 py-5">
         <h2 className="font-display text-xl text-explained">Read this before the numbers</h2>
         <p className="mt-3 max-w-3xl text-sm leading-relaxed text-muted">
-          <span className="text-ink">Spend Limits are enforced so i don't lose money. Every example used to fit this model is synthetic.</span> There
+          <span className="text-ink">Spend limits are enforced so I don't lose money. Every example used to fit this model is synthetic.</span> There
           is no proprietary dataset here and no real payments data anywhere in the project. Examples
           are constructed by{" "}
           <code className="font-mono text-xs">lib/fitting/synthetic.ts</code>, which means the ground
@@ -98,6 +98,29 @@ export default function HowItWorks() {
             fitted probabilities away from 0 and 1, so the model is systematically under-confident at
             the extremes. That is a deliberate trade — a resolver that never claims certainty is the
             behaviour we want — but it is a real cost and it belongs on this page.
+          </p>
+        </div>
+
+        <div className="card mt-4 border-explained/35 bg-explained/[0.06] px-5 py-4">
+          <h3 className="text-micro uppercase tracking-widest text-explained">
+            What fitting these weights cost
+          </h3>
+          <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted">
+            Fit 1&apos;s features are binary — each check either fired with a given outcome or it did
+            not — so a fitted coefficient <span className="text-ink">structurally cannot express
+            magnitude</span>. The hand-picked weight it replaced could: a shortfall scored
+            <span className="tnum font-mono text-xs"> −1.41</span> at a penny and
+            <span className="tnum font-mono text-xs"> −9.40</span> when the whole payment was missing.
+            The fitted replacement is a flat <span className="tnum font-mono text-xs">−1.2978</span>
+            either way.
+          </p>
+          <p className="mt-3 max-w-3xl text-sm leading-relaxed text-muted">
+            The verdict is unaffected — a shortfall of any size still flags — but the confidence
+            behind it is no longer severity-sensitive, so a missing cent and a missing payout now read
+            the same on this one axis. That is a real regression against the thing being replaced, and
+            the honest trade is: an arbitrary weight that encoded a genuine intuition, versus a fitted
+            one that encodes only what the data could express. Recovering it means giving the model a
+            continuous severity feature, which is the obvious next fit and has not been done.
           </p>
         </div>
 

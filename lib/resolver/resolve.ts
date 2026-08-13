@@ -1,4 +1,5 @@
 import { expectedNetCents, observedNetCents, usd } from "../fixtures";
+import { fittedWeight } from "./fitted";
 import { BASE_LOGIT, MAX_CONFIDENCE, MIN_CONFIDENCE, runDeterministicChecks, sigmoid } from "./checks";
 import { calibrateWeight } from "./calibration";
 import { mockJudgement } from "./mock-reasoning";
@@ -159,13 +160,27 @@ export function scoreAndClassify(
   const scoring: Resolution["scoring"] = {
     intercept: Number(BASE_LOGIT.toFixed(4)),
     contributions: [
-      { label: "Prior (fitted intercept)", weight: Number(BASE_LOGIT.toFixed(4)), kind: "intercept" as const },
+      {
+        label: "Prior (fitted intercept)",
+        weight: Number(BASE_LOGIT.toFixed(4)),
+        kind: "intercept" as const,
+        fitted: true,
+      },
       ...checks.map((c) => ({
         label: c.label,
         weight: Number(c.weight.toFixed(4)),
         kind: "deterministic" as const,
+        // Asked of the same table the substitution reads, so a check whose
+        // outcome never occurred in the training data is labelled honestly
+        // rather than borrowing the credibility of the fit.
+        fitted: fittedWeight(c.id, c.outcome) !== undefined,
       })),
-      { label: "Evidence reading", weight: Number(llmWeight.toFixed(4)), kind: "llm" as const },
+      {
+        label: "Evidence reading",
+        weight: Number(llmWeight.toFixed(4)),
+        kind: "llm" as const,
+        fitted: false,
+      },
     ],
     logit: Number(logit.toFixed(4)),
     uncapped: Math.round(uncapped * 100) / 100,

@@ -327,8 +327,17 @@ export default function InvestigatePage() {
           </div>
           <div className="mt-5">
             <h4 className="text-micro uppercase tracking-widest text-muted">
-              Every claim above traces to these records
+              {state.rebuttal.rebuttal.basis === "derived"
+                ? "Every claim above traces to these records"
+                : "Records this case was written from"}
             </h4>
+            {state.rebuttal.rebuttal.basis === "authored" && (
+              <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted">
+                The prose here is hand-written for this fixture, so the wording is not machine-derived
+                — but every factor below it carries the record it came from, and the win likelihood is
+                computed from those weights, not written in.
+              </p>
+            )}
             <ul className="mt-3 flex flex-wrap gap-2">
               {state.rebuttal.rebuttal.evidenceCited.map((c, i) => (
                 <li key={i}>
@@ -351,7 +360,7 @@ function InvestigateIdle({ uploaded }: { uploaded: boolean }) {
     ["01", "Assemble", "Pull every fragment that mentions the transaction — order, settlement, carrier scan, support transcript, the chargeback itself."],
     ["02", "Resolve", "Run the same deterministic checks Reconcile uses, then read the narrative evidence for corroboration or contradiction."],
     ["03", "Weigh", "Score each piece of evidence for or against the cardholder's claim, starting from the network's published win rate for that reason code."],
-    ["04", "Draft", "Write the representment from those weighted factors, so every claim in the letter traces back to a record."],
+    ["04", "Draft", "Write the representment from those weighted factors. For an uploaded dispute the letter is assembled from them; the four bundled cases carry hand-written prose, labelled as such."],
   ];
   return (
     <div className="mt-10 grid gap-8 lg:grid-cols-[1fr_20rem]">
@@ -440,12 +449,41 @@ function RebuttalPanel({
     <div className={`card border ${meta.border} ${meta.bg} px-5 py-4`}>
       <p className="text-micro uppercase tracking-widest text-muted">Win likelihood</p>
       <p className={`tnum mt-1 font-mono text-4xl ${meta.text}`}>{pct}%</p>
-      <p className={`chip mt-3 ${meta.text} ${meta.border} bg-surface`}>{meta.label}</p>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <p className={`chip ${meta.text} ${meta.border} bg-surface`}>{meta.label}</p>
+        {/*
+          Where the case came from, said out loud. The percentage is computed
+          from the factor weights either way — what differs is whether the
+          factors and the letter prose were written by hand for this fixture or
+          derived from the evidence at request time.
+        */}
+        <p
+          className={`chip bg-surface ${
+            rebuttal.basis === "derived"
+              ? "border-signal/40 text-signal"
+              : "border-rule text-muted"
+          }`}
+          title={
+            rebuttal.basis === "derived"
+              ? "Factors and letter assembled from the evidence at request time"
+              : "Factors and letter hand-written for this bundled fixture; the score is still computed from them"
+          }
+        >
+          {rebuttal.basis === "derived"
+            ? `derived from ${factors.length} factors`
+            : "hand-authored case"}
+        </p>
+      </div>
       <p className="mt-3 text-sm leading-relaxed text-muted">{rebuttal.recommendationNote}</p>
 
       <h4 className="mt-6 border-t border-rule pt-4 text-micro uppercase tracking-widest text-muted">
         Weighted factors
       </h4>
+      <p className="mt-1 text-xs leading-relaxed text-muted">
+        {rebuttal.basis === "derived"
+          ? "Read from the evidence at request time."
+          : "Hand-picked for this fixture. The win likelihood below is still the sigmoid of their sum over the published reason-code baseline — not a written-in number."}
+      </p>
       <ul className="mt-3 space-y-2.5">
         {factors.map((f, i) => {
           const positive = f.weight >= 0;

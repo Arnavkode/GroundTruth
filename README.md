@@ -75,7 +75,7 @@ Not a vibe, and not hand-tuned. Each deterministic check — amount against the 
 - by **evidence coverage**, so a unit with two sources can't score like one with five;
 - hard at **40%** when a transaction isn't uniquely identifiable — two settlements matching one unlabelled bank credit equally well.
 
-Below **60%** the resolver flags instead of resolving. It never claims more than **97%**. The score answers one question: ***how likely is it that this transaction needs no human?*** That is the exact quantity Fit 1 was trained against, so a proven duplicate capture scores low (37%) — not because the finding is uncertain, but because it definitely needs a person.
+Below **60%** the resolver flags instead of resolving. It never claims more than **97%**. The score answers one question: ***how likely is it that this transaction needs no human?*** That is the exact quantity Fit 1 was fitted against, so a proven duplicate capture scores low (37%) — not because the finding is uncertain, but because it definitely needs a person.
 
 The reasoning step can move the score. It cannot override the arithmetic that produced it.
 
@@ -247,7 +247,9 @@ npx tsx scripts/test-responsive.ts   # 375 / 768 / 1024 / 1440px
 
 https://groundtruth-cl4upk4dd-arnav-guptas-projects-4ac946ea.vercel.app
 
-Publicly reachable, running **live reasoning** on Gemini's free tier, with Upstash-backed global rate limits (`"store":"redis"` confirmed on the deployment). Three live runs per IP per hour; past that it degrades to canned reasoning mid-stream with an in-theme notice, and every number on screen is identical either way.
+Publicly reachable, with Upstash-backed global rate limits (`"store":"redis"`, confirmed against the deployment). Live reasoning runs on Gemini's free tier **when quota allows** — 20 live calls per IP per hour, one per transaction reasoned, against a global cap of 300/day.
+
+Whether any given visitor sees live or canned reasoning depends on what is left. That is the design, not a caveat: the free tier has no billing account behind it, so when the provider's quota is exhausted the first 429 latches live mode off for the rest of the UTC day and every run is served from canned reasoning instead. **Nothing degrades but the prose** — the checks, the fitted weights, the confidence and the buckets are computed from the data either way, and the UI says which it is on every resolution.
 
 ## Project structure
 

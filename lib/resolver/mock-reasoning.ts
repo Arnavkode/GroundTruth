@@ -6,7 +6,7 @@ import type { Check, EvidenceBundle, LlmJudgement } from "./types";
  *
  * These are not templates. Each one is the argument a careful analyst would
  * make about that specific transaction, citing the specific records involved.
- * In real mode the same slot is filled by the Anthropic call in llm.ts; the
+ * In real mode the same slot is filled by the Gemini call in llm.ts; the
  * shape and the pacing are identical so the demo is the same either way.
  */
 const CANNED: Record<string, (b: EvidenceBundle) => Omit<LlmJudgement, "provenance">> = {

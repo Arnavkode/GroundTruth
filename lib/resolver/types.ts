@@ -203,7 +203,17 @@ export interface Resolution {
   scoring: {
     intercept: number;
     /** Signed contributions in the order they were applied. */
-    contributions: { label: string; weight: number; kind: "deterministic" | "llm" | "intercept" }[];
+    contributions: {
+      label: string;
+      weight: number;
+      kind: "deterministic" | "llm" | "intercept";
+      /**
+       * Whether this weight came out of Fit 1 or is still the hand-picked
+       * constant. Not every check/outcome pair appears in the training data, so
+       * some rows legitimately fall back — the UI must not call those "fitted".
+       */
+      fitted: boolean;
+    }[];
     logit: number;
     /** Confidence before the coverage and identifiability caps. */
     uncapped: number;

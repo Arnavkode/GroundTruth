@@ -453,7 +453,3 @@ export function runDeterministicChecks(bundle: EvidenceBundle): Check[] {
   return checks.map((c) => ({ ...c, weight: fittedWeight(c.id, c.outcome) ?? c.weight }));
 }
 
-/** The hand-picked weight a check would have used without Fit 1. For the UI. */
-export function unfittedWeight(check: Check): number | undefined {
-  return fittedWeight(check.id, check.outcome) === undefined ? undefined : check.weight;
-}

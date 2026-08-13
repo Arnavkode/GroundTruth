@@ -383,6 +383,37 @@ export async function checkRateLimit(ip: string, opts: CheckOptions = {}): Promi
     );
   }
 
+  // ── Order matters here, and getting it wrong is an availability bug ───────
+  //
+  // The per-IP window is checked BEFORE the global daily counter is
+  // incremented. Done the other way round — as this did until a review caught
+  // it — every refused request still consumed a slot from the global budget,
+  // so one address looping a few hundred times could exhaust the day's live
+  // reasoning for every other visitor while receiving only its own handful of
+  // calls. Pure damage, no benefit to the attacker. That matters more than it
+  // first appears: per-IP limits are weak against a client whose egress
+  // address rotates, which makes the global counter the cap that actually
+  // holds, and therefore the one that must not be spendable by a denial.
+  //
+  // The residual asymmetry is deliberate. If the daily cap denies after the
+  // per-IP window was taken, that visitor has burned one of their own slots
+  // for a canned answer — but the daily cap means everyone is getting canned
+  // answers anyway, so it costs them nothing they had. The reverse leak cost
+  // everyone the rest of the day.
+  const perIp = await store.tryWindow(`gt:ip:${ip}`, ipMax, HOUR_MS, now);
+  base.ipRemaining = Math.max(0, ipMax - perIp.count);
+  base.resetAt = perIp.oldest !== null ? perIp.oldest + HOUR_MS : null;
+  if (!perIp.allowed) {
+    // Read, never increment — reporting the number must not spend it.
+    base.callsUsedToday = await store.readCounter(`gt:calls:${day}`);
+    base.dailyRemaining = Math.max(0, dayMax - base.callsUsedToday);
+    return deny(
+      "ip-limit-exceeded",
+      `Rate limit reached (${ipMax} live calls per hour per IP — one per transaction reasoned) — falling back to mock reasoning.`,
+      base,
+    );
+  }
+
   const daily = await store.tryCounter(`gt:calls:${day}`, dayMax);
   base.callsUsedToday = daily.count;
   base.dailyRemaining = Math.max(0, dayMax - daily.count);
@@ -391,17 +422,6 @@ export async function checkRateLimit(ip: string, opts: CheckOptions = {}): Promi
     return deny(
       "daily-cap-reached",
       `Global daily cap of ${dayMax} live calls reached — falling back to mock reasoning.`,
-      base,
-    );
-  }
-
-  const perIp = await store.tryWindow(`gt:ip:${ip}`, ipMax, HOUR_MS, now);
-  base.ipRemaining = Math.max(0, ipMax - perIp.count);
-  base.resetAt = perIp.oldest !== null ? perIp.oldest + HOUR_MS : null;
-  if (!perIp.allowed) {
-    return deny(
-      "ip-limit-exceeded",
-      `Rate limit reached (${ipMax} live calls per hour per IP — one per transaction reasoned) — falling back to mock reasoning.`,
       base,
     );
   }

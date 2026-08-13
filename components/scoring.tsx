@@ -30,11 +30,17 @@ function Bar({ weight, max }: { weight: number; max: number }) {
   );
 }
 
-const KIND_LABEL: Record<string, string> = {
-  intercept: "fitted prior",
-  deterministic: "fitted weight",
-  llm: "evidence reading",
-};
+/**
+ * Not every check/outcome pair appears in the synthetic training data, so some
+ * rows still carry their original hand-picked constant. Labelling those
+ * "fitted weight" borrowed credibility the number did not have — the flag comes
+ * from the same lookup the substitution uses.
+ */
+function kindLabel(kind: string, fitted: boolean): string {
+  if (kind === "llm") return "evidence reading";
+  if (kind === "intercept") return "fitted prior";
+  return fitted ? "fitted weight" : "hand-picked";
+}
 
 export function ScoreBreakdown({ r }: { r: Resolution }) {
   const { scoring } = r;
@@ -47,8 +53,19 @@ export function ScoreBreakdown({ r }: { r: Resolution }) {
     <section className="card px-5 py-4">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <h3 className="text-micro uppercase tracking-widest text-muted">How this score was built</h3>
+        {/*
+          Brier, not AUC. The AUC is 1.000 and real, but it is close to
+          tautological — the label is a deterministic function of the archetype
+          the checks were built to detect — so putting it here, on the screen
+          most people actually look at, would flatter the model with the one
+          number that means least. Brier carries no such distortion.
+        */}
         <span className="tnum font-mono text-micro text-muted">
-          fit {FIT1.n.toLocaleString("en-US")} examples · AUC {FIT1.metrics.testAuc.toFixed(3)}
+          fit {FIT1.n.toLocaleString("en-US")} examples · Brier{" "}
+          {FIT1.metrics.testBrier.toFixed(4)}{" "}
+          <a href="/how-it-works" className="underline decoration-dotted underline-offset-2">
+            why not AUC?
+          </a>
         </span>
       </div>
 
@@ -58,8 +75,12 @@ export function ScoreBreakdown({ r }: { r: Resolution }) {
             <div className="flex items-baseline justify-between gap-3">
               <span className="text-xs leading-snug">
                 {c.label}
-                <span className="ml-2 text-micro uppercase tracking-widest text-muted">
-                  {KIND_LABEL[c.kind]}
+                <span
+                  className={`ml-2 text-micro uppercase tracking-widest ${
+                    c.kind === "deterministic" && !c.fitted ? "text-explained" : "text-muted"
+                  }`}
+                >
+                  {kindLabel(c.kind, c.fitted)}
                 </span>
               </span>
               <span

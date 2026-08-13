@@ -94,8 +94,10 @@ Every unsupervised call made during the build, and why.
 - **Instrument Serif + IBM Plex Sans + IBM Plex Mono** originally. **Superseded by Geist Sans +
   Geist Mono** after the site was reported laggy: two self-hosted variable fonts instead of six
   Google-hosted files. Details and the display-type tuning in `DESIGN_NOTES.md`.
-- **Light-only, no dark mode.** A deliberate commitment rather than an omission — one palette done
-  properly beats two done at 2am.
+- **~~Light-only, no dark mode.~~ Reversed.** This originally argued that one palette done properly
+  beats two done at 2am. It was then asked for and built — `components/theme.tsx`, both palettes as
+  CSS-variable tokens, applied before first paint. Struck through rather than deleted: a decisions log
+  that quietly removes the decisions it reversed is worth less than one that shows them.
 - **The confidence meter draws the 60% threshold**, so you can see how close a call was rather than
   only which side it landed on.
 - **Motion limited to state changes** — rows settling as they stream, a pulse while reasoning runs,
@@ -302,3 +304,37 @@ empty placeholder again.
   a visitor's live-reasoning allowance without making a single model call, and `callsUsedToday` would
   stop meaning "calls made". It also refuses outright instead of degrading, because there is no
   canned fallback for validating someone's file the way there is for narrative prose.
+
+---
+
+## Addendum 4 — what a judge review found, and what it cost to admit
+
+- **Fitting the check weights flattened magnitude, and that is a regression worth naming.** The
+  hand-picked `amount:conflict` weight scaled with severity — `-(1.4 + 8 × ratio)`, so −1.41 at a
+  penny and −9.40 at a full missing payout. Fit 1's features are binary check-outcome indicators, so
+  the fitted coefficient is a flat −1.2978 regardless. The verdict is unchanged (any shortfall still
+  flags) but the confidence behind it is no longer severity-sensitive. The honest framing: we traded
+  an arbitrary number that encoded a real intuition for a fitted number that encodes only what the
+  feature space could represent. The fix is a continuous severity feature; it has not been built, and
+  pretending the trade was free would have been worse than the trade.
+- **The per-IP check now runs before the global daily counter is incremented.** In the old order every
+  refused request still spent a slot of the global budget, so one address looping a few hundred times
+  could exhaust the day's live reasoning for every visitor while receiving only its own three calls —
+  damage with no benefit to the attacker. A test drives 60 requests from one IP and asserts the global
+  counter moved by exactly the 3 that were served; against the old ordering it moved by 60.
+  This matters more than it looks, because per-IP limits are weak against rotating egress addresses
+  (observed first-hand: this machine egresses from three), which makes the global counter the cap that
+  actually holds — and therefore the one a denial must never be able to spend.
+- **`ScoreBreakdown` shows Brier, not AUC.** The AUC of 1.000 is real and reported on `/how-it-works`
+  with the reason not to be impressed by it. Repeating it on the screen most people actually look at
+  would have been leading with the one number that means least.
+- **Check rows say "hand-picked" when they are.** 17 check/outcome pairs have fitted coefficients;
+  reachable ones outside that set — `capture-vs-order:conflict` among them — still use their original
+  constant. Labelling those "fitted weight" borrowed credibility they did not have. All 86
+  deterministic rows across the bundled fixtures happen to be fitted, so this shows up only on
+  uploaded data — which is exactly why it was worth fixing rather than leaving as a technicality.
+- **The rebuttal's `basis` is now on screen.** All four bundled disputes take the hand-authored path,
+  and the page previously told every visitor that each claim traced to computed factors. The win
+  likelihood *is* computed either way — it is the sigmoid of the factor weights over the published
+  reason-code baseline — but the factors and prose for those four are hand-written, and the chip now
+  says so.
