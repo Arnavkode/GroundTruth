@@ -1297,3 +1297,145 @@ Screenshot in `shots/investigate-upload.png`: an uploaded non-receipt claim reso
 confidence with a 33% win likelihood and an accept-liability recommendation, the letter citing the
 uploaded delivery signature. The first version of this test failed three assertions because it
 asserted mid-stream — impatience, not a defect, and the wait now keys on the rebuttal.
+
+---
+
+# ADDENDUM 5 - judge-review fix pass
+
+A cold-read review found real defects with file/line citations. Worked in the reviewer's priority
+order. Every item re-checked against the live deployment or real test output, not against the diff.
+
+## 1. Redeploy and verify - passed, with one correction to the reviewer
+
+```
+HEAD 0b360af deployed
+perRun 16 | perIp 20 | store redis
+```
+
+The ingest-limit check needed care. A first run of 22 uploads returned **200 every time**, which
+looks exactly like a broken limiter. It is not: this machine egresses from three different addresses,
+so the requests spread across three buckets and none passed 20. A 30-request burst produced a mix of
+200 and 429 with `Retry-After: 2754` - correct behaviour, observed correctly.
+
+Worth stating the consequence rather than declaring victory: **a per-IP limit is weak against any
+client whose egress rotates**, which makes the global daily counter the cap that actually holds - and
+that is precisely why item 3 mattered more than it first looked.
+
+## 2. `rebuttal.basis` is on screen
+
+All four bundled disputes take the hand-authored path, and the page told every visitor that each
+claim traced back to computed factors. Fixed three ways: a chip beside the recommendation reading
+**hand-authored case** or **derived from N factors**; the citation heading now reads "Records this
+case was written from" for authored cases; and the factor list carries the honest sentence.
+
+The reviewer's framing needed one correction, and it is in the app's favour: the win likelihood is
+computed on **both** paths - it is the sigmoid of the factor weights over the published reason-code
+baseline. What is hand-written for the four fixtures is the factor list and the letter prose, not the
+number. The UI now says exactly that.
+
+Kept the hand-authored prose rather than routing the demo cases through `deriveLetter`, because it is
+better writing and the chip makes the provenance honest. Verified live:
+
+```
+GET /api/investigate?dispute=DSP-1009  ->  basis: authored | factors: 6 | win: 0.88
+```
+
+## 3. The daily-counter ordering bug - the most serious item
+
+`checkRateLimit` incremented the **global** daily counter before checking the per-IP window, and an
+IP denial never rolled it back. One address looping could exhaust the day's live reasoning for every
+visitor while receiving only its own three calls: pure damage, no benefit to the attacker.
+
+Per-IP is now checked first, and the denial path reads the daily counter without incrementing it.
+Proven both ways - the test was run against the old ordering before the fix was kept:
+
+```
+                                    old ordering        fixed
+one IP looping 60 times             3 live calls        3 live calls
+global daily counter afterwards     60                  3
+another visitor's remaining budget  239 / 300           296 / 300
+```
+
+The residual asymmetry is deliberate and documented in the code: if the daily cap denies after the
+per-IP window was taken, that visitor spent one of their own slots for a canned answer - but under a
+daily cap everyone is getting canned answers anyway, so it costs them nothing they had.
+
+## 4. `ScoreBreakdown` leads with Brier
+
+The AUC of 1.000 is real, and `/how-it-works` already explains why it is close to tautological. It was
+still the bare headline on the screen most people actually look at. Now
+`fit 1,500 examples - Brier 0.0516 - why not AUC?`, linking to the explanation.
+
+## 5. "Hand-picked" is labelled as such
+
+17 check/outcome pairs have fitted coefficients; reachable pairs outside that set keep their original
+constant, and every row said "fitted weight" regardless. Contributions now carry a `fitted` flag
+sourced from the same lookup the substitution uses. Forced the reviewer's example to confirm the label
+actually renders:
+
+```
+  source-coverage:missing      weight  -0.4835  ->  FITTED
+  id-link:missing              weight  -0.4835  ->  FITTED
+  fee-schedule:conflict        weight  -1.3315  ->  FITTED
+  capture-vs-order:conflict    weight     -1.2  ->  HAND-PICKED
+```
+
+Across the 16 bundled fixtures all 86 deterministic rows happen to be fitted, so this shows only on
+uploaded data - which is the reason to fix it rather than call it a technicality. `unfittedWeight()`
+deleted: exported, called nowhere, and wrong if it had been called.
+
+## 6. The magnitude-flattening disclosure
+
+Confirmed the reviewer's numbers exactly. The hand-picked weight was `-(1.4 + 8 x ratio)` - -1.41 at a
+penny, -9.40 at a full missing payout. The fitted replacement is a flat **-1.2978**, because Fit 1's
+features are binary check-outcome indicators and structurally cannot express magnitude. Verdicts are
+unchanged; confidence is no longer severity-sensitive. Disclosed on `/how-it-works` and in
+`DECISIONS.md`, in the same register as the ECE admission, including the fix that has *not* been done
+(a continuous severity feature).
+
+## 7-8. Word precision and cosmetics
+
+"trained" -> "fitted". The per-IP wording now says live **calls**, one per transaction. The
+live-reasoning claim describes the fail-safe rather than asserting quota that may be gone.
+Capitalised the lone "i". Removed `@anthropic-ai/sdk`, dead since the migration. Fixed the stale
+"Anthropic call in llm.ts" comment. The light-only decision in `DECISIONS.md` is struck through rather
+than deleted - a decisions log that quietly removes what it reversed is worth less than one that shows
+it. `.logs/` and `tsconfig.tsbuildinfo` were already untracked.
+
+## 9. Warming the deployment - which found one more bug
+
+The deployment reported `quota-exhausted` with **194 of our own 300 daily calls unspent**, so the
+latch was suspect. A one-shot call to the same key and model answered in 4.3 seconds: the provider was
+fine.
+
+The cause: Gemini returns 429 for both "1000 requests today" and "15 requests this minute" without
+reliably distinguishing them, and a single unpaced 16-unit batch is enough to trip the per-minute
+limit. The code treated any 429 as daily exhaustion and disabled live reasoning until midnight UTC -
+so one burst of my own testing cost hours of needless degradation, and would have been exactly what a
+reviewer loaded.
+
+Now a 15-minute cooldown. A per-minute spike recovers by itself; genuine daily exhaustion re-latches
+on the next attempt at a cost of one wasted call per window - a few dozen a day against a budget of
+300, to avoid hours of false degradation. The flag is no longer day-scoped, so its TTL expires it.
+
+Verified after deploying:
+
+```
+meta        mode real | reason allowed | store redis
+resolution  provenance real | conf 96%
+calibration {"raw":1,"calibrated":1,"fitted":true,
+             "note":"Stated 1.00, left effectively unchanged, against 200 outcomes with known ground truth."}
+```
+
+## Verification
+
+```
+guardrails         PASS   (incl. the new ordering test and the 429-cooldown test)
+ingest             PASS
+e2e                PASS
+investigate-upload PASS
+responsive         PASS   375/768/1024/1440 x light/dark
+resolver           6 matched / 5 explained / 5 flagged - unchanged
+build + tsc        clean
+live               perRun 16 - perIp 20 - store redis - live reasoning restored
+```
