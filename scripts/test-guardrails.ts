@@ -237,7 +237,7 @@ async function main() {
   process.env.RATE_LIMIT_PER_IP_PER_HOUR = "3";
 
   // ── 4. Quota exhaustion latches for the day ───────────────────────────────
-  header("4. A provider 429 latches quota-exhausted for the rest of the day");
+  header("4. A provider 429 backs off for a cooldown, then retries automatically");
   shared.flush();
   __setStoreForTests(redisStore(shared));
   const before = await checkRateLimit("203.0.113.150");

@@ -155,7 +155,7 @@ export interface RateStore {
   readCounter(key: string): Promise<number>;
   addTokens(key: string, tokens: number): Promise<number>;
   getFlag(key: string): Promise<boolean>;
-  setFlag(key: string): Promise<void>;
+  setFlag(key: string, ttlSeconds?: number): Promise<void>;
   reset(): Promise<void>;
 }
 
@@ -209,6 +209,8 @@ export const memoryStore: RateStore = {
     return memoryState().flags.has(key);
   },
   async setFlag(key) {
+    // The in-memory store has no expiry; only the Redis path is load-bearing
+    // for the cooldown, and tests drive the clock explicitly.
     memoryState().flags.add(key);
   },
   async reset() {
@@ -259,9 +261,9 @@ export function redisStore(client: RedisLike): RateStore {
     async getFlag(key) {
       return Boolean(await client.get(key));
     },
-    async setFlag(key) {
+    async setFlag(key, ttlSeconds) {
       await client.set(key, "1");
-      await client.expire(key, DAY_SECONDS + 60);
+      await client.expire(key, ttlSeconds ?? DAY_SECONDS + 60);
     },
     async reset() {
       /* Redis state is intentionally not resettable from app code. */
@@ -364,12 +366,14 @@ export async function checkRateLimit(ip: string, opts: CheckOptions = {}): Promi
     return deny("no-api-key", "No GEMINI_API_KEY present — reasoning is canned, not live.", base);
   }
 
-  // A 429 seen earlier today means the free quota is gone. Stop asking.
-  if (await store.getFlag(`gt:quota-exhausted:${day}`)) {
-    base.resetAt = midnightAfter(now);
+  // A recent 429 from the provider. Back off for the cooldown rather than
+  // hammering a limit we cannot distinguish between "per minute" and "per day".
+  if (await store.getFlag(QUOTA_COOLDOWN_KEY)) {
+    base.resetAt = now + QUOTA_COOLDOWN_SECONDS * 1000;
     return deny(
       "quota-exhausted",
-      "The Gemini free-tier quota for today is exhausted — reasoning is canned until it resets.",
+      `The provider returned a rate/quota error recently — reasoning is canned for up to ` +
+        `${QUOTA_COOLDOWN_SECONDS / 60} minutes, then live reasoning is retried automatically.`,
       base,
     );
   }
@@ -444,26 +448,43 @@ export async function recordUsage(
 }
 
 /**
- * Latch "the free quota is gone" for the rest of the day.
+ * How long a provider 429 disables live reasoning.
  *
- * Deliberately loud: running out of quota should be boring and recoverable, but
- * an operator reading logs must be able to see that live mode degraded and when.
+ * This used to be the rest of the UTC day, and that was wrong in a way that
+ * only showed up in production: Gemini returns 429 for *both* "you have used
+ * your 1000 requests today" and "you have exceeded 15 requests this minute",
+ * and the error does not reliably distinguish them. A single unpaced batch of
+ * 16 units is enough to trip the per-minute limit — so one burst switched the
+ * whole deployment to canned reasoning for hours while the provider was
+ * perfectly happy to serve. Verified directly: the deployment reported
+ * `quota-exhausted` with 194 of our own 300 daily calls still unspent, and a
+ * one-shot call to the same key with the same model answered in 4.3 seconds.
+ *
+ * A cooldown handles both cases correctly. A per-minute spike recovers by
+ * itself; genuine daily exhaustion simply re-latches on the next attempt, at a
+ * cost of one wasted call per cooldown window — a few dozen a day at most,
+ * against a budget of 300, to avoid hours of needless degradation.
  */
+const QUOTA_COOLDOWN_SECONDS = 15 * 60;
+
+/** Not day-scoped any more: the TTL is what expires it. */
+const QUOTA_COOLDOWN_KEY = "gt:quota-cooldown";
+
 export async function markQuotaExhausted(
   detail: string,
   now: number = Date.now(),
 ): Promise<void> {
-  const day = dayKey(now);
-  await activeStore().setFlag(`gt:quota-exhausted:${day}`);
+  await activeStore().setFlag(QUOTA_COOLDOWN_KEY, QUOTA_COOLDOWN_SECONDS);
   console.error(
-    `[groundtruth] GEMINI FREE QUOTA EXHAUSTED on ${day}. Live reasoning is disabled until ` +
-      `${new Date(midnightAfter(now)).toISOString()}; every request is now served with canned ` +
-      `reasoning. This is expected behaviour, not an outage. Detail: ${detail}`,
+    `[groundtruth] Gemini returned 429 at ${new Date(now).toISOString()}. Live reasoning is ` +
+      `disabled for ${QUOTA_COOLDOWN_SECONDS / 60} minutes, then retried — this covers a ` +
+      `per-minute rate spike and genuine daily exhaustion alike. Requests are served with canned ` +
+      `reasoning meanwhile. This is expected behaviour, not an outage. Detail: ${detail}`,
   );
 }
 
-export async function isQuotaExhausted(now: number = Date.now()): Promise<boolean> {
-  return activeStore().getFlag(`gt:quota-exhausted:${dayKey(now)}`);
+export async function isQuotaExhausted(): Promise<boolean> {
+  return activeStore().getFlag(QUOTA_COOLDOWN_KEY);
 }
 
 export async function currentUsage(now: number = Date.now()) {

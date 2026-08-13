@@ -21,7 +21,7 @@ const REASON_COPY: Record<
     title: "Hourly limit reached for your connection",
     tone: "warn",
     body: (b) =>
-      `You have used all ${b.limits.perIpPerHour} live reasoning runs available per hour. Everything below still ran — the deterministic checks, the confidence model and the buckets never needed a model — but the written analysis is canned rather than generated.`,
+      `You have used all ${b.limits.perIpPerHour} live reasoning calls available per hour — one per transaction reasoned. Everything below still ran — the deterministic checks, the confidence model and the buckets never needed a model — but the written analysis is canned rather than generated.`,
   },
   "daily-cap-reached": {
     title: "Daily call cap reached",
@@ -30,10 +30,10 @@ const REASON_COPY: Record<
       `This deployment allows ${b.limits.dailyCalls} live calls a day across all traffic — deliberately a fraction of the provider's ${b.limits.freeTierRpd}/day free allowance, so we never run up against their ceiling. Resolution quality is unaffected; the reasoning step is canned until the cap resets.`,
   },
   "quota-exhausted": {
-    title: "Free-tier quota exhausted for today",
-    tone: "stop",
+    title: "Backing off after a provider rate limit",
+    tone: "warn",
     body: (b) =>
-      `The provider returned a quota error, so live reasoning is off until the daily quota resets. There is no billing account behind this key — past the free quota the request simply stops, which is the point. ${b.callsUsedToday} live calls were made today.`,
+      `Gemini returned a 429, which covers both "too many this minute" and "none left today" without distinguishing them — so live reasoning pauses briefly and retries rather than assuming the worst. There is no billing account behind this key: past the free quota a request simply stops, which is the point. ${b.callsUsedToday} live calls were made today.`,
   },
   "upload-cap-reached": {
     title: "Live-call limit reached for this run",
