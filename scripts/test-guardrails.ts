@@ -8,9 +8,30 @@
  *
  *   npm run test:guardrails
  */
-// 39 chars, Gemini-shaped, and deliberately not matching the placeholder filter —
-// this key is never sent anywhere; no request in this file leaves the process.
-process.env.GEMINI_API_KEY = "AIzaSyD1a2b3c4d5e6f7g8h9i0j1k2l3m4n5o6p";
+/**
+ * Fabricated keys, assembled at runtime rather than written as literals.
+ *
+ * These used to be spelled out in full, imitating Google's `AIzaSy…` prefix.
+ * GitHub's secret scanner flagged all three the moment this file was pushed —
+ * correctly, because a scanner cannot tell a fabricated key of the right shape
+ * from a live one, and treating a real leak as "probably a test fixture" is the
+ * failure that actually costs people money. The alert was doing its job; the
+ * source was the problem.
+ *
+ * What `hasRealApiKey()` actually checks is length and the absence of
+ * placeholder words — the vendor prefix is irrelevant to it. So these carry no
+ * vendor prefix, and nothing in this file is a contiguous key-shaped literal.
+ * Nothing here is ever sent anywhere: no request in this file leaves the
+ * process.
+ */
+function fakeKey(tag: string, length = 39): string {
+  const filler = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  let out = `k${tag}`;
+  for (let i = 0; out.length < length; i += 1) out += filler[(i * 7 + tag.length) % filler.length];
+  return out.slice(0, length);
+}
+
+process.env.GEMINI_API_KEY = fakeKey("main");
 process.env.RATE_LIMIT_PER_IP_PER_HOUR = "3";
 process.env.DAILY_REAL_CALL_CAP = "300";
 delete process.env.DISABLE_REAL_MODE;
@@ -288,10 +309,10 @@ async function main() {
     ["unset", undefined],
     ["empty", ""],
     ["your-key-here", "your-key-here"],
-    ["AIza-placeholder", "AIza-placeholder-not-a-real-key-000000"],
-    ["contains xxx", "AIzaSyDxxx2b3c4d5e6f7g8h9i0j1k2l3m4n5o6"],
-    ["too short", "AIzaShort"],
-    ["realistic", "AIzaSyB9zQwErTyUiOpAsDfGhJkLzXcVbNm0123"],
+    ["says placeholder", `${fakeKey("a")}-placeholder`],
+    ["contains xxx", `xxx${fakeKey("b")}`],
+    ["too short", "short"],
+    ["realistic", fakeKey("c")],
   ] as const) {
     if (key === undefined) delete process.env.GEMINI_API_KEY;
     else process.env.GEMINI_API_KEY = key;
