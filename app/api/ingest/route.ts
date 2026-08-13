@@ -1,4 +1,5 @@
 import { ingest, LIMITS, SOURCE_KINDS, type SourceKind, type UploadFile } from "@/lib/ingest";
+import { checkIngestLimit, clientIp } from "@/lib/ratelimit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,10 +17,10 @@ const ALLOWED_TYPES = new Set([
   "",
 ]);
 
-function reject(status: number, fatal: string[]) {
+function reject(status: number, fatal: string[], headers?: HeadersInit) {
   return Response.json(
     { report: { ok: false, fatal, issues: [], truncations: [], accepted: {}, rejected: {} }, dataset: null },
-    { status },
+    { status, headers },
   );
 }
 
@@ -30,6 +31,28 @@ export async function POST(request: Request) {
     return reject(413, [
       `Upload is ${(declared / 1024).toFixed(0)}KB; the limit is ${LIMITS.MAX_BYTES / 1024}KB.`,
     ]);
+  }
+
+  // 2. Per-IP limit, before the body is read or parsed — a limiter that runs
+  //    after `formData()` prevents none of the work it exists to prevent. It
+  //    sits after the size check on purpose: that one is a free header read,
+  //    and rejecting an oversized body should not spend anyone's budget.
+  //
+  //    This endpoint cannot degrade the way the resolver does. There is no
+  //    canned validation of somebody's file, so it refuses outright.
+  const gate = await checkIngestLimit(clientIp(request.headers));
+  if (!gate.allowed) {
+    const seconds = Math.max(1, Math.ceil(((gate.resetAt ?? Date.now()) - Date.now()) / 1000));
+    const mins = Math.ceil(seconds / 60);
+    return reject(
+      429,
+      [
+        `Upload limit reached — ${gate.limit} uploads per hour from one address. ` +
+          `Try again in ${mins} minute${mins === 1 ? "" : "s"}. ` +
+          `Nothing else is affected: resolving the bundled fixtures still works.`,
+      ],
+      { "Retry-After": String(seconds) },
+    );
   }
 
   const contentType = request.headers.get("content-type") ?? "";
@@ -44,7 +67,7 @@ export async function POST(request: Request) {
     return reject(400, ["Could not read the upload — malformed multipart body."]);
   }
 
-  // 2. Collect only the fields we recognise, validating each file as we go.
+  // 3. Collect only the fields we recognise, validating each file as we go.
   const files: UploadFile[] = [];
   const fatal: string[] = [];
   let bytes = 0;

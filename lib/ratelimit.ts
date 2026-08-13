@@ -439,6 +439,60 @@ export async function currentUsage(now: number = Date.now()) {
   };
 }
 
+/* ─────────────────────── the ingestion endpoint ───────────────────────────*/
+
+/**
+ * Uploading is an iterate-and-retry loop — you fix a rejected row and try
+ * again — so this is deliberately far looser than the reasoning cap.
+ */
+export function ingestLimit(): number {
+  return Number(process.env.RATE_LIMIT_INGEST_PER_HOUR ?? 20);
+}
+
+export interface IngestDecision {
+  allowed: boolean;
+  used: number;
+  remaining: number;
+  limit: number;
+  /** Epoch ms at which the window frees up. Null when not limited. */
+  resetAt: number | null;
+  store: "redis" | "memory";
+}
+
+/**
+ * Per-IP limit for `/api/ingest`, kept deliberately separate from
+ * `checkRateLimit`.
+ *
+ * They answer different questions. `checkRateLimit` answers "may this request
+ * spend a live model call?", and answering it consumes `gt:ip:<ip>` — a
+ * visitor's whole live-reasoning allowance for the hour. Ingestion makes *zero*
+ * model calls: it parses and validates a file. Charging it to the reasoning
+ * budget would let three CSV uploads silently burn a visitor's live reasoning,
+ * and would make `callsUsedToday` stop being a true count of calls made.
+ *
+ * The failure mode differs too. The resolver *degrades* when limited — the
+ * resolution is still complete and correct, only the prose goes canned. There
+ * is no canned validation of somebody's file, so this one has to actually
+ * refuse.
+ */
+export async function checkIngestLimit(
+  ip: string,
+  opts: { now?: number } = {},
+): Promise<IngestDecision> {
+  const now = opts.now ?? Date.now();
+  const store = activeStore();
+  const limit = ingestLimit();
+  const hit = await store.tryWindow(`gt:ingest:${ip}`, limit, HOUR_MS, now);
+  return {
+    allowed: hit.allowed,
+    used: hit.count,
+    remaining: Math.max(0, limit - hit.count),
+    limit,
+    resetAt: hit.allowed ? null : (hit.oldest ?? now) + HOUR_MS,
+    store: store.kind,
+  };
+}
+
 /** Test-only: wipe the in-memory store. */
 export async function __resetRateLimit(): Promise<void> {
   await activeStore().reset();

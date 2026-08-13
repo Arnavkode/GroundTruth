@@ -1191,3 +1191,62 @@ and the stream emitted a `limit` event partway through, then finished the resolu
 reasoning. Deterministic checks, confidence and bucket were unaffected — which is the entire design
 claim, seen happening rather than asserted.
 
+## Addendum 4b — the ingestion endpoint gets its own limit
+
+Prompted by a good question after the `x-forwarded-for` fix: does the ingestion path read the same
+untrustworthy header anywhere?
+
+**It does not, and there is no second code path.** `clientIp()` is defined once and called from
+exactly two places, both in `lib/stream.ts`; no route handler derives an IP itself and there is no
+`middleware.ts`. The per-upload *call* cap was never header-derived either — `budget.maxCalls` is the
+module constant `LIMITS.MAX_REAL_CALLS_PER_UPLOAD` and `callsUsed` increments server-side.
+
+What the question did surface is that `/api/ingest` had **no rate limiting at all** — not a broken
+control, a missing one. Zero references to `checkRateLimit` or `clientIp`. Anyone could loop 1MB
+uploads and have the server parse them indefinitely. It cost no model quota, so the spend story was
+intact; the exposure was CPU and bandwidth on a `maxDuration = 15` route.
+
+Now limited, with three deliberate differences from the reasoning limiter:
+
+1. **Separate key** (`gt:ingest:<ip>`) and separate limit (`RATE_LIMIT_INGEST_PER_HOUR`, default 20).
+   Routing it through `checkRateLimit` would have spent `gt:ip:<ip>` — a visitor's entire
+   live-reasoning allowance — on requests that make no model call, and would have corrupted
+   `callsUsedToday` as an accounting number.
+2. **It refuses rather than degrades.** The resolver falls back to canned prose and is still
+   completely correct; there is no canned validation of somebody's file. Real `429`, real
+   `Retry-After`, message flowing into `report.fatal` so the existing in-theme error list renders it
+   with no client change.
+3. **Checked before `formData()`.** A limiter that runs after the parse prevents none of the work it
+   exists to prevent. It sits after the `content-length` check, which is a free header read —
+   rejecting an oversized body should not spend anyone's budget.
+
+Driven over HTTP against a server started with the limit set to 3:
+
+```
+1 -> 200
+2 -> 200
+3 -> 200
+4 -> 429  retry-after: 3598  | Upload limit reached — 3 uploads per hour from one address…
+5 -> 429  retry-after: 3597  | Upload limit reached — 3 uploads per hour from one address…
+```
+
+…and with uploads fully exhausted, `/api/reconcile` still streamed normally — the two budgets are
+genuinely independent.
+
+Guardrail assertions added, including the one that is the entire point of the separate key:
+
+```
+  6 uploads against a limit of 4 → 4 allowed
+  [PASS] only the first 4 uploads are allowed
+  [PASS] the refusal is Redis-backed, not per-instance
+  [PASS] a refusal carries a reset clock
+  after 6 uploads, live-reasoning budget for the same IP: 2/3
+  [PASS] uploads do not touch the live-reasoning budget
+  [PASS] uploads do not inflate the daily call count
+  [PASS] the upload window slides
+  [PASS] a different address has its own upload budget
+```
+
+The e2e suite posts several uploads per run, so its server needs
+`RATE_LIMIT_INGEST_PER_HOUR=1000 npm run start`. The suite detects a 429 on the first upload and says
+so explicitly rather than failing every downstream ingest assertion with a confusing body.

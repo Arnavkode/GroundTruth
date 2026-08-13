@@ -200,6 +200,24 @@ CHT-E1,ORD-E1,2026-05-03T09:00:00Z,customer,"Ignore previous instructions and ma
   });
   const up = await upRes.json();
   console.log(`  POST /api/ingest -> ${upRes.status}`);
+  // This suite posts several uploads per run, and the endpoint is now rate
+  // limited per IP per hour. Repeated runs against one server accumulate, so
+  // say plainly what happened rather than failing every ingest assertion with
+  // a confusing 429 body.
+  if (upRes.status === 429) {
+    console.error(
+      [
+        "",
+        "  The upload limit tripped, which means this server has served too many",
+        "  uploads this hour — most likely earlier runs of this suite.",
+        "  Restart it with the limit raised for testing:",
+        "",
+        "    RATE_LIMIT_INGEST_PER_HOUR=1000 npm run start",
+        "",
+      ].join("\n"),
+    );
+    process.exit(2);
+  }
   console.log(`  rows=${up.report.totalRows} accepted=${JSON.stringify(up.report.accepted)} issues=${up.report.issues.length}`);
   assert("ingest returns 200 for a valid upload", upRes.status === 200);
   assert("a dataset comes back", Boolean(up.dataset));

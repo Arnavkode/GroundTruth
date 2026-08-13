@@ -34,6 +34,7 @@ import {
   type RateStore,
   type RedisLike,
   redisCredentials,
+  checkIngestLimit,
 } from "../lib/ratelimit";
 import { isQuotaError, QuotaExhaustedError } from "../lib/resolver/llm";
 import { LIMITS } from "../lib/ingest";
@@ -318,7 +319,56 @@ async function main() {
   assert("recovered after the hour", recovered.mode === "real");
   assert("free-tier figures are echoed for display", blocked.limits.freeTierRpd === FREE_TIER.rpd);
 
-  header("10. Client IP extraction — the per-IP cap is only as good as this");
+  // ── 10. The ingestion endpoint's own limit ────────────────────────────────
+  header("10. /api/ingest is limited separately from live reasoning");
+  shared.flush();
+  __setStoreForTests(redisStore(shared));
+  await __resetRateLimit();
+
+  const savedIngest = process.env.RATE_LIMIT_INGEST_PER_HOUR;
+  process.env.RATE_LIMIT_INGEST_PER_HOUR = "4";
+  const uploader = "203.0.113.44";
+  const t1 = Date.now();
+
+  const uploads = [];
+  for (let i = 0; i < 6; i += 1) uploads.push(await checkIngestLimit(uploader, { now: t1 }));
+  const allowedUploads = uploads.filter((u) => u.allowed).length;
+  console.log(`  6 uploads against a limit of 4 → ${allowedUploads} allowed`);
+  console.log(`  refusal reports: ${JSON.stringify({ ...uploads[5], resetAt: undefined })}`);
+  assert("only the first 4 uploads are allowed", allowedUploads === 4, `${allowedUploads}`);
+  assert("the refusal is Redis-backed, not per-instance", uploads[5].store === "redis");
+  assert("a refusal carries a reset clock", (uploads[5].resetAt ?? 0) > t1);
+  assert("remaining bottoms out at zero", uploads[5].remaining === 0);
+
+  // The whole reason for a separate key. Validating a file makes no model call,
+  // so it must not spend the live-reasoning allowance — otherwise a few CSV
+  // uploads silently burn a visitor's ability to see real reasoning at all.
+  const reasoningAfter = await checkRateLimit(uploader);
+  console.log(
+    `  after 6 uploads, live-reasoning budget for the same IP: ${reasoningAfter.ipRemaining}/${perIpLimit()}`,
+  );
+  assert(
+    "uploads do not touch the live-reasoning budget",
+    reasoningAfter.ipRemaining === perIpLimit() - 1,
+    `${reasoningAfter.ipRemaining} left of ${perIpLimit()} after one reasoning call`,
+  );
+  assert(
+    "uploads do not inflate the daily call count",
+    (await currentUsage()).calls === 1,
+    "only the single reasoning call above should be counted",
+  );
+
+  const uploadRecovered = await checkIngestLimit(uploader, { now: t1 + 3_600_001 });
+  console.log(`  t+1h → allowed=${uploadRecovered.allowed}`);
+  assert("the upload window slides", uploadRecovered.allowed);
+
+  const otherUploader = await checkIngestLimit("203.0.113.45", { now: t1 });
+  assert("a different address has its own upload budget", otherUploader.allowed);
+
+  if (savedIngest === undefined) delete process.env.RATE_LIMIT_INGEST_PER_HOUR;
+  else process.env.RATE_LIMIT_INGEST_PER_HOUR = savedIngest;
+
+  header("11. Client IP extraction — the per-IP cap is only as good as this");
   // x-forwarded-for is client-supplied and Vercel appends to it rather than
   // replacing it, so trusting the left-most entry lets any caller mint a fresh
   // bucket per request. Verified the hard way against the live deployment.
@@ -349,12 +399,12 @@ async function main() {
   assert("falls back to x-real-ip", clientIp(new Headers({ "x-real-ip": "198.51.100.9" })) === "198.51.100.9");
   assert("no headers at all still yields a key", clientIp(new Headers()) === "0.0.0.0");
 
-  // ── 11. Credential names ──────────────────────────────────────────────────
+  // ── 12. Credential names ──────────────────────────────────────────────────
   // Upstash arrives under two different names depending on how it was connected.
   // Reading only one is how a deployment ends up silently in memory mode while
   // the dashboard reports Redis connected — the exact failure the store exists
   // to prevent, and one that no other assertion here would catch.
-  header("11. Redis credentials are found under either naming convention");
+  header("12. Redis credentials are found under either naming convention");
   const savedEnv = {
     u: process.env.UPSTASH_REDIS_REST_URL,
     t: process.env.UPSTASH_REDIS_REST_TOKEN,

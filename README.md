@@ -188,8 +188,14 @@ degrades.
 | Per IP, per hour | `RATE_LIMIT_PER_IP_PER_HOUR` | 3 — keyed on the platform-set client IP, not the spoofable `x-forwarded-for` |
 | Global calls per day | `DAILY_REAL_CALL_CAP` | 300 (free tier states ~1000) |
 | Live calls per upload | fixed | 10 |
+| Uploads per IP, per hour | `RATE_LIMIT_INGEST_PER_HOUR` | 20 — a real 429, see below |
 | Provider 429 | — | latches live mode off for the rest of the day |
 
+- **`/api/ingest` is limited separately, and refuses rather than degrading.** It makes no model
+  calls, so charging it to the live-reasoning budget would let a few CSV uploads silently burn a
+  visitor's ability to see real reasoning at all — separate key, separate limit. And unlike the
+  resolver there is no canned fallback for validating somebody's file, so it returns a real `429`
+  with `Retry-After`. The message lands in the same in-theme error list the row-level errors use.
 - **A single quota error latches.** Retrying into an exhausted quota is waste, and looks like abuse
   from the provider's side, so the first `RESOURCE_EXHAUSTED` turns live reasoning off until the
   daily reset and logs it loudly.
@@ -224,7 +230,9 @@ npm run fit:weights      # Fit 1 — check weights by logistic regression (no ke
 npm run fit:calibrate    # Fit 2 — calibrate stated confidence (needs GEMINI_API_KEY; refuses without)
 npm run test:injection-live  # 4 adversarial payloads against the real model (needs GEMINI_API_KEY)
 npm run test:ingest      # ingestion, input caps, prompt-injection defence
-npm run test:e2e         # both workflows over HTTP (needs `npm run start` running)
+npm run test:e2e         # both workflows over HTTP; start the server with
+                         #   RATE_LIMIT_INGEST_PER_HOUR=1000 npm run start
+                         # since the suite posts several uploads per run
 npx tsx scripts/test-responsive.ts   # 375 / 768 / 1024 / 1440px
 ```
 

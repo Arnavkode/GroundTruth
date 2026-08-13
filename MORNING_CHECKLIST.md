@@ -123,12 +123,28 @@ The best use of further time, per the brief. `lib/fixtures/*.json` plus a hand-w
 split shipment settling in two payouts, a chargeback reversal landing after representment, and a
 refund issued against the wrong original transaction.
 
-## 9. Optional — harden the ingestion path further
+## 9. ~~Harden the ingestion path~~ - done
 
-Currently good enough for a reviewer hitting it directly. If it ever faces sustained traffic:
-per-IP rate limiting on `/api/ingest` itself (today only the *resolver* is limited, so a bot could
-validate files cheaply in a loop), and a virus/content scan if uploads are ever persisted — they are
-not today, nothing is written to disk or a database.
+`/api/ingest` used to have no rate limiting at all: a bot could loop 1MB uploads and make the server
+parse them forever. It now has its own per-IP hourly window, `RATE_LIMIT_INGEST_PER_HOUR` (default
+20), checked before the body is read.
+
+Kept deliberately separate from the reasoning limiter, because they answer different questions.
+`checkRateLimit` answers "may this spend a live model call?", and answering it consumes a visitor's
+whole live-reasoning allowance for the hour. Ingestion makes zero model calls, so charging it there
+would mean three CSV uploads silently burn someone's ability to see real reasoning - and would make
+`callsUsedToday` stop being a true count of calls made.
+
+It also refuses instead of degrading. The resolver can fall back to canned prose and still be
+correct; there is no canned validation of somebody's file, so this returns a real `429` with
+`Retry-After`. The message flows into `report.fatal`, which the upload panel already renders.
+
+**One thing to remember:** `npm run test:e2e` posts several uploads per run, so start its server with
+the limit raised - `RATE_LIMIT_INGEST_PER_HOUR=1000 npm run start`. The suite detects a 429 and tells
+you this rather than failing every ingest assertion.
+
+Still not done, and still optional: a virus/content scan. Only worth it if uploads are ever
+persisted - today nothing is written to disk or a database.
 
 ---
 

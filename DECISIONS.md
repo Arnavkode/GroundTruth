@@ -296,3 +296,9 @@ empty placeholder again.
   own header handling. That is the case for `MORNING_CHECKLIST.md` §4 existing at all.
 - **The key is now on the deployment**, with Redis-backed global caps confirmed first, in the order
   the checklist specifies.
+
+- **The ingestion endpoint gets its own limiter rather than sharing the reasoning one.** They answer
+  different questions, and conflating them has a concrete cost in both directions: uploads would burn
+  a visitor's live-reasoning allowance without making a single model call, and `callsUsedToday` would
+  stop meaning "calls made". It also refuses outright instead of degrading, because there is no
+  canned fallback for validating someone's file the way there is for narrative prose.
