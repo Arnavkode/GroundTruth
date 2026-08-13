@@ -12,10 +12,12 @@ import {
   Timeline,
 } from "@/components/ui";
 import { useResolverStream } from "@/components/useResolverStream";
-import { disputes } from "@/lib/fixtures";
+import { disputes as fixtureDisputes } from "@/lib/fixtures";
+import { UploadPanel } from "@/components/upload";
 import { CalibrationPanel, ScoreBreakdown } from "@/components/scoring";
 import { ArcCluster, ConfidenceDial, ScatterField } from "@/components/decor";
-import type { TimelineEvent } from "@/lib/resolver/types";
+import type { EvidenceDataset, TimelineEvent } from "@/lib/resolver/types";
+import type { IngestReport } from "@/lib/ingest";
 
 function usd(cents: number) {
   return `$${(cents / 100).toLocaleString("en-US", {
@@ -51,9 +53,27 @@ const RECOMMENDATION_META: Record<
 export default function InvestigatePage() {
   const { state, start, reset } = useResolverStream();
   const [active, setActive] = useState<string | null>(null);
+  const [upload, setUpload] = useState<{ dataset: EvidenceDataset; report: IngestReport } | null>(
+    null,
+  );
 
   const resolution = state.resolutions[0] ?? null;
   const running = state.phase === "running";
+
+  /**
+   * Investigate runs on uploaded evidence exactly as Reconcile does — the
+   * resolver takes a dataset and cannot tell the two apart. The only reason
+   * this page used to be fixtures-only is that it never offered the upload,
+   * which made "bring your own data" quietly true of one workflow and not the
+   * other.
+   */
+  const disputes = upload ? upload.dataset.disputes : fixtureDisputes;
+  const startDispute = (disputeId: string) => {
+    setActive(disputeId);
+    const url = `/api/investigate?dispute=${encodeURIComponent(disputeId)}`;
+    if (upload) start(url, { dataset: upload.dataset });
+    else start(url);
+  };
 
   /** Mark timeline events by which side the rebuttal engine weighed them for. */
   const timeline: TimelineEvent[] = useMemo(() => {
@@ -90,11 +110,18 @@ export default function InvestigatePage() {
         <div className="above hidden self-end lg:block">
           <ScatterField className="h-24 w-full opacity-90" />
           <dl className="mt-2 grid grid-cols-3 gap-px overflow-hidden rounded border border-rule bg-rule text-center">
-            {[
-              ["4", "open disputes"],
-              ["2", "worth fighting"],
-              ["88%", "best case"],
-            ].map(([v, k]) => (
+            {(upload
+              ? [
+                  [String(disputes.length), "uploaded disputes"],
+                  [String(upload.report.totalRows), "rows ingested"],
+                  ["—", "not yet assessed"],
+                ]
+              : [
+                  [String(disputes.length), "open disputes"],
+                  ["2", "worth fighting"],
+                  ["88%", "best case"],
+                ]
+            ).map(([v, k]) => (
               <div key={k} className="bg-surface px-2 py-3">
                 <dd className="tnum font-mono text-sm">{v}</dd>
                 <dt className="mt-0.5 text-micro uppercase tracking-widest text-muted">{k}</dt>
@@ -105,7 +132,19 @@ export default function InvestigatePage() {
       </header>
 
       <section className="mt-8">
-        <h2 className="text-micro uppercase tracking-widest text-muted">Open disputes — 4</h2>
+        <h2 className="text-micro uppercase tracking-widest text-muted">
+          {upload
+            ? `Disputes in your upload — ${disputes.length}`
+            : `Open disputes — ${disputes.length}`}
+        </h2>
+        {disputes.length === 0 && (
+          <p className="card mt-3 px-5 py-4 text-sm leading-relaxed text-muted">
+            <span className="text-ink">Your upload has no disputes in it.</span> Investigate needs a{" "}
+            <code className="font-mono text-xs">disputes</code> file — one row per chargeback, with a{" "}
+            <code className="font-mono text-xs">transactionRef</code> pointing at a settlement in the
+            same upload. Reconcile works on what you have uploaded without one.
+          </p>
+        )}
         <ul className="mt-3 grid gap-3 sm:grid-cols-2">
           {disputes.map((d, i) => {
             const isActive = active === d.disputeId;
@@ -119,10 +158,7 @@ export default function InvestigatePage() {
                   className={`card flex h-full w-full flex-col gap-2 px-5 py-4 text-left transition-colors ${
                     isActive ? "border-signal bg-signal/[0.04]" : "hover:border-ink/25"
                   }`}
-                  onClick={() => {
-                    setActive(d.disputeId);
-                    start(`/api/investigate?dispute=${d.disputeId}`);
-                  }}
+                  onClick={() => startDispute(d.disputeId)}
                   disabled={running}
                   aria-pressed={isActive}
                 >
@@ -141,6 +177,23 @@ export default function InvestigatePage() {
           })}
         </ul>
       </section>
+
+      {state.phase === "idle" && (
+        <div className="mt-8">
+          <UploadPanel
+            loaded={upload}
+            disabled={running}
+            onLoaded={(dataset, report) => {
+              setUpload({ dataset, report });
+              setActive(null);
+            }}
+            onCleared={() => {
+              setUpload(null);
+              setActive(null);
+            }}
+          />
+        </div>
+      )}
 
       <div className="mt-6 flex flex-wrap items-center gap-3">
         <BudgetBadge budget={state.budget} />
@@ -275,13 +328,13 @@ export default function InvestigatePage() {
         </section>
       )}
 
-      {state.phase === "idle" && <InvestigateIdle />}
+      {state.phase === "idle" && <InvestigateIdle uploaded={Boolean(upload)} />}
     </div>
   );
 }
 
 /** Pre-run state: the pipeline a dispute goes through, rather than blank space. */
-function InvestigateIdle() {
+function InvestigateIdle({ uploaded }: { uploaded: boolean }) {
   const stages = [
     ["01", "Assemble", "Pull every fragment that mentions the transaction — order, settlement, carrier scan, support transcript, the chargeback itself."],
     ["02", "Resolve", "Run the same deterministic checks Reconcile uses, then read the narrative evidence for corroboration or contradiction."],
@@ -312,8 +365,18 @@ function InvestigateIdle() {
             ))}
           </ol>
           <p className="mt-6 border-t border-rule pt-4 text-sm leading-relaxed text-muted">
-            Each dispute above is a pre-selected case from the bundled fixtures — two the merchant
-            should fight, two it should not. The resolver will tell you which is which.
+            {uploaded ? (
+              <>
+                These disputes came from your upload. They run through the same checks, the same
+                fitted weights and the same rebuttal engine as the bundled cases — the resolver takes
+                a dataset and cannot tell where it came from.
+              </>
+            ) : (
+              <>
+                Each dispute above is a pre-selected case from the bundled fixtures — two the merchant
+                should fight, two it should not. The resolver will tell you which is which.
+              </>
+            )}
           </p>
         </div>
       </div>

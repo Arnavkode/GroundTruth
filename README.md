@@ -113,8 +113,14 @@ resolver takes an `EvidenceDataset` and cannot tell the two apart.
 ```
 POST /api/ingest        multipart: bank | settlement | orders | shipments | chats | disputes
                         → { report, dataset }   validated, per-row errors named
-POST /api/reconcile     { dataset }  → SSE stream, same as the fixture run
+POST /api/reconcile     { dataset }                → SSE stream, same as the fixture run
+POST /api/investigate   { dataset } ?dispute=ID    → SSE stream, same as the fixture run
 ```
+
+**Both workflows take uploads, not just Reconcile.** Include a `disputes` file and the Investigate
+page lists the chargebacks from it instead of the bundled ones — same checks, same fitted weights,
+same rebuttal engine, and a representment letter citing your records. `npm run test:investigate-upload`
+drives that through a real browser.
 
 Validation is strict and specific — a bad row is rejected on its own, with its row number, field and
 reason, rather than the file being refused wholesale:
@@ -229,6 +235,7 @@ npm run test:guardrails  # quota guards: concurrency, daily cap, kill switch, pe
 npm run fit:weights      # Fit 1 — check weights by logistic regression (no key needed)
 npm run fit:calibrate    # Fit 2 — calibrate stated confidence (needs GEMINI_API_KEY; refuses without)
 npm run test:injection-live  # 4 adversarial payloads against the real model (needs GEMINI_API_KEY)
+npm run test:investigate-upload  # uploads a dispute and investigates it, through a real browser
 npm run test:ingest      # ingestion, input caps, prompt-injection defence
 npm run test:e2e         # both workflows over HTTP; start the server with
                          #   RATE_LIMIT_INGEST_PER_HOUR=1000 npm run start

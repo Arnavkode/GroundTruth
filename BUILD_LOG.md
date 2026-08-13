@@ -1250,3 +1250,50 @@ Guardrail assertions added, including the one that is the entire point of the se
 The e2e suite posts several uploads per run, so its server needs
 `RATE_LIMIT_INGEST_PER_HOUR=1000 npm run start`. The suite detects a 429 on the first upload and says
 so explicitly rather than failing every downstream ingest assertion with a confusing body.
+
+## Addendum 4c — Investigate accepts uploads too
+
+Asked whether Investigate only worked on reconciled cases, and whether uploads reached it at all.
+
+**No coupling to Reconcile.** There is no shared state and no database; `investigateStream` looks the
+dispute up, pulls the evidence bundle for its `transactionRef` and runs the same checks from scratch.
+Hitting `/api/investigate` cold works.
+
+**The upload gap was real but purely front-end.** `POST /api/investigate` had always accepted a
+dataset through the same `clampDataset` caps as reconcile, and `disputes` is one of the six parsed
+source kinds — proven against production before changing anything:
+
+```
+meta        origin=upload   label=Uploaded evidence
+resolution  TXN-U1  flagged  51%
+rebuttal    basis=derived  factors=3  win=0.09
+```
+
+What was missing: the page imported `disputes` statically from `@/lib/fixtures` and only ever called
+the GET endpoint, so "bring your own data" was quietly true of one workflow and not the other —
+awkward for a project whose central architectural claim is one shared resolver.
+
+Now the dispute list reads from the active dataset, the upload panel appears on both pages, and the
+header stats, the empty state and the idle copy all follow the data rather than asserting fixture
+facts over an upload. A dataset with no `disputes` file says so and points at Reconcile.
+
+`npm run test:investigate-upload` drives it through a real browser: upload five CSVs, confirm the
+list switches from the four bundled disputes to the uploaded one, run it, and check the rebuttal is
+built from the uploaded records.
+
+```
+  [PASS] the page still opens on the bundled disputes — 4
+  [PASS] the dispute list switches to the upload — Disputes in your upload — 1
+  [PASS] the uploaded dispute is listed
+  [PASS] the bundled disputes are no longer offered
+  [PASS] the uploaded transaction is what got resolved
+  [PASS] no bundled transaction leaked into the run
+  [PASS] a rebuttal was drafted from the uploaded records — letter cites the uploaded shipment
+  [PASS] a win likelihood is shown
+  [PASS] no horizontal scroll after the uploaded run — 0px
+```
+
+Screenshot in `shots/investigate-upload.png`: an uploaded non-receipt claim resolved to 51%
+confidence with a 33% win likelihood and an accept-liability recommendation, the letter citing the
+uploaded delivery signature. The first version of this test failed three assertions because it
+asserted mid-stream — impatience, not a defect, and the wait now keys on the rebuttal.
