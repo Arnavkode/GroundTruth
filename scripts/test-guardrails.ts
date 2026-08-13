@@ -33,6 +33,7 @@ import {
   redisStore,
   type RateStore,
   type RedisLike,
+  redisCredentials,
 } from "../lib/ratelimit";
 import { isQuotaError, QuotaExhaustedError } from "../lib/resolver/llm";
 import { LIMITS } from "../lib/ingest";
@@ -323,6 +324,54 @@ async function main() {
     clientIp(new Headers({ "x-forwarded-for": "203.0.113.7, 70.41.3.18" })) === "203.0.113.7",
   );
   assert("falls back to x-real-ip", clientIp(new Headers({ "x-real-ip": "198.51.100.9" })) === "198.51.100.9");
+
+  // ── 11. Credential names ──────────────────────────────────────────────────
+  // Upstash arrives under two different names depending on how it was connected.
+  // Reading only one is how a deployment ends up silently in memory mode while
+  // the dashboard reports Redis connected — the exact failure the store exists
+  // to prevent, and one that no other assertion here would catch.
+  header("11. Redis credentials are found under either naming convention");
+  const savedEnv = {
+    u: process.env.UPSTASH_REDIS_REST_URL,
+    t: process.env.UPSTASH_REDIS_REST_TOKEN,
+    ku: process.env.KV_REST_API_URL,
+    kt: process.env.KV_REST_API_TOKEN,
+  };
+  const clearEnv = () => {
+    delete process.env.UPSTASH_REDIS_REST_URL;
+    delete process.env.UPSTASH_REDIS_REST_TOKEN;
+    delete process.env.KV_REST_API_URL;
+    delete process.env.KV_REST_API_TOKEN;
+  };
+
+  clearEnv();
+  assert("no credentials → nothing to connect with", redisCredentials() === null);
+
+  clearEnv();
+  process.env.UPSTASH_REDIS_REST_URL = "https://example.upstash.io";
+  process.env.UPSTASH_REDIS_REST_TOKEN = "console-token";
+  assert(
+    "UPSTASH_REDIS_REST_* (copied from the Upstash console) is used",
+    redisCredentials()?.token === "console-token",
+  );
+
+  clearEnv();
+  process.env.KV_REST_API_URL = "https://example.upstash.io";
+  process.env.KV_REST_API_TOKEN = "integration-token";
+  assert(
+    "KV_REST_API_* (set by Vercel's integration) is used",
+    redisCredentials()?.token === "integration-token",
+  );
+
+  clearEnv();
+  process.env.KV_REST_API_URL = "https://example.upstash.io";
+  assert("a URL without a token is not enough", redisCredentials() === null);
+
+  clearEnv();
+  if (savedEnv.u) process.env.UPSTASH_REDIS_REST_URL = savedEnv.u;
+  if (savedEnv.t) process.env.UPSTASH_REDIS_REST_TOKEN = savedEnv.t;
+  if (savedEnv.ku) process.env.KV_REST_API_URL = savedEnv.ku;
+  if (savedEnv.kt) process.env.KV_REST_API_TOKEN = savedEnv.kt;
 
   __setStoreForTests(null);
   await __resetRateLimit();

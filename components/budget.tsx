@@ -185,7 +185,9 @@ export function BudgetNotice({ budget }: { budget: BudgetSnapshot | null }) {
         <p className="mt-3 text-xs leading-relaxed text-flagged">
           Caps are being counted per serverless instance, not globally — set{" "}
           <code className="font-mono">UPSTASH_REDIS_REST_URL</code> and{" "}
-          <code className="font-mono">UPSTASH_REDIS_REST_TOKEN</code> to make them real.
+          <code className="font-mono">UPSTASH_REDIS_REST_TOKEN</code> (or the{" "}
+          <code className="font-mono">KV_REST_API_*</code> pair Vercel&apos;s integration sets) to make
+          them real.
         </p>
       )}
     </section>

@@ -39,7 +39,7 @@ export default function HowItWorks() {
       <section className="card mt-10 border-explained/35 bg-explained/[0.06] px-6 py-5">
         <h2 className="font-display text-xl text-explained">Read this before the numbers</h2>
         <p className="mt-3 max-w-3xl text-sm leading-relaxed text-muted">
-          <span className="text-ink">Every example used to fit this model is synthetic.</span> There
+          <span className="text-ink">Spend Limits are enforced so i don't lose money. Every example used to fit this model is synthetic.</span> There
           is no proprietary dataset here and no real payments data anywhere in the project. Examples
           are constructed by{" "}
           <code className="font-mono text-xs">lib/fitting/synthetic.ts</code>, which means the ground

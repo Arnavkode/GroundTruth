@@ -22,7 +22,7 @@ import { Redis } from "@upstash/redis";
  * Every one of them fails the same safe way: the request is served with canned
  * reasoning rather than erroring.
  *
- * The store is Upstash Redis when UPSTASH_REDIS_REST_URL / _TOKEN are set, and
+ * The store is Upstash Redis when UPSTASH_REDIS_REST_* or KV_REST_API_* are set, and
  * an in-process map otherwise. Vercel runs many concurrent instances, so an
  * in-memory limiter gives each its own budget and the effective public limit is
  * (configured limit × instances). Redis makes the cap global and real.
@@ -260,12 +260,27 @@ export function __setStoreForTests(store: RateStore | null): void {
   injectedStore = store;
 }
 
+/**
+ * Upstash credentials arrive under two different names depending on how the
+ * database was connected: `UPSTASH_REDIS_REST_*` when you copy them from the
+ * Upstash console, and `KV_REST_API_*` when Vercel's marketplace integration
+ * provisions it for you. Same REST endpoint, same token, different labels.
+ *
+ * Reading only one name is how a deployment ends up silently on the in-memory
+ * store while the dashboard says Redis is connected — which is precisely the
+ * failure the persistent store exists to prevent. So accept both.
+ */
+export function redisCredentials(): { url: string; token: string } | null {
+  const url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
+  return url && token ? { url, token } : null;
+}
+
 export function activeStore(): RateStore {
   if (injectedStore) return injectedStore;
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (url && token) {
-    return redisStore(new Redis({ url, token }) as unknown as RedisLike);
+  const creds = redisCredentials();
+  if (creds) {
+    return redisStore(new Redis(creds) as unknown as RedisLike);
   }
   return memoryStore;
 }
