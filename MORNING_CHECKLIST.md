@@ -46,73 +46,55 @@ Read these three files, in this order:
 
 Re-run the proofs yourself: `npm run test:guardrails && npm run test:ingest`.
 
-## 4. Set up Upstash — this is the actual gate on adding a key
+## 4. ~~Set up Upstash~~ - done, and it caught a real bug
 
-**The limiter is only global if Redis is configured.** Without it, each serverless instance keeps its
-own counters, so the effective public limit is (configured limit × concurrent instances). The
-guardrails test demonstrates this directly: six instances against a limit of three let all six
-through.
+You connected Upstash through Vercel's integration. Confirming it (rather than trusting the
+dashboard) is what surfaced the problem: the integration provisions `KV_REST_API_URL` /
+`KV_REST_API_TOKEN`, and the code only read `UPSTASH_REDIS_REST_URL` / `_TOKEN`. Database live,
+dashboard green, limiter silently still per-instance. Both namings are now accepted.
 
-1. Create a free Upstash Redis database (no card required).
-2. Copy the REST URL and token into Vercel → Project `groundtruth` → Settings → Environment Variables:
-   - `UPSTASH_REDIS_REST_URL`
-   - `UPSTASH_REDIS_REST_TOKEN`
-3. Redeploy, then **confirm it is actually being used** — this is the step that matters:
+Confirmed on the deployment:
 
 ```bash
-curl -N "https://<your-deploy>/api/reconcile?paced=0" | head -c 400
-# The first event must contain: "store":"redis"
-# If it says "store":"memory", Redis is NOT wired and the cap is per-instance.
+curl -sN "https://<your-deploy>/api/reconcile?paced=0" | head -c 400
+# contains: "store":"redis"        <- global caps, not per-instance
 ```
 
-Do not skip the confirmation. A typo in the URL leaves you with a silent fallback to the exact
-behaviour the cap is meant to prevent.
+Re-run that check after any change to the integration. `"store":"memory"` means the caps are not
+real, whatever the dashboard says.
 
-## 5. Only now, add the real `GEMINI_API_KEY` to the deployment
+## 5. ~~Add the real `GEMINI_API_KEY`~~ - done and verified live
 
-You supplied a key and it has already been used locally, for the two things that were blocked on it:
+The key is on Production and Preview, added only after step 4 reported `"store":"redis"`. Verified
+end to end on the deployment:
 
-- **Fit 2 ran.** 200 live calls, 0 failures, 38 minutes, $0. `lib/resolver/calibration.ts` is now a
-  real fitted map and the app no longer says "uncalibrated" anywhere. The 200 replies are committed
-  to `lib/fitting/fit2-samples.json`, so re-fitting costs nothing:
-  `CAL_SAMPLES=lib/fitting/fit2-samples.json npm run fit:calibrate`.
-- **The injection defence was re-verified against Gemini itself.** 25 assertions, 4 real calls, 4
-  payloads, all passing. Captured output is in `BUILD_LOG.md`.
+```
+meta         mode=real   reason=allowed   store=redis
+resolution   reasoningProvenance=real   confidence=0.96
+calibration  fitted, applied to a live reply
+```
 
-**Where the key is now:** `.env.local`, which is gitignored. You had put it in `.env.example`, which
-is a **committed** file — it was moved before any commit, and `git log -S` confirms it never reached
-history. If that key was ever pushed anywhere else, rotate it at
-https://aistudio.google.com/apikey; it costs nothing to replace.
+Fit 2 and the Gemini injection re-verification both ran locally beforehand - 200 live calls and 25
+assertions respectively, details in `BUILD_LOG.md`.
 
-**It is deliberately NOT on the Vercel deployment yet**, for the reason in §4 and nothing else:
-without Upstash, every cap is counted per serverless instance, so the effective public limit is
-(limit × instances). Do step 4 first. The preview serves mock reasoning until you do.
+**The key lives in `.env.local` locally** (gitignored). You had put it in `.env.example`, which is a
+**committed** file; it was moved before any commit and `git log -S` confirms it never reached
+history. If it was pasted anywhere else, rotate it at https://aistudio.google.com/apikey - free.
 
-### On the deployment
+**A bug this step found:** the per-IP cap was bypassable with one `x-forwarded-for` header, because
+Vercel appends to that header rather than replacing it. Now fixed to use the platform-set
+`x-vercel-forwarded-for` / `x-real-ip`, re-tested with five spoofed addresses sharing one bucket.
+The daily cap was global throughout, so the exposure was always bounded at 300 free calls a day.
 
-In this order, and do not reorder them:
-
-1. Confirm step 4 shows `"store":"redis"`. Without it the caps are per-instance.
-2. Defaults are already conservative (300/day, 3/hour/IP, 10/upload) - no change needed.
-3. Add `GEMINI_API_KEY` in the Vercel dashboard. Detection is automatic - **no code change**.
-4. Exercise the cheapest possible path first - one dispute, one unit, one call:
+### If you want to watch it
 
 ```bash
 curl -N "https://<your-deploy>/api/investigate?dispute=DSP-1009" | grep -o 'reasoningProvenance...real'
-# expect a match
 ```
 
-5. Watch for the failure mode that looks like success: if the model returns unparseable JSON,
-   `realJudgement()` falls back to canned reasoning, so you would see `mock` and wrongly conclude
-   the key was not detected. Add a `console.warn` in the `catch` in `llm.ts` while you check.
-6. Confirm token accounting is live - the `meta` event should show a non-zero `tokensUsedToday`
-   after a real call. The usage keys were confirmed against a live response
-   (`total_input_tokens` / `total_output_tokens` / `total_thought_tokens`, thinking tokens counted
-   as output), so a zero here means the key is not being picked up, not that accounting is broken.
-
-**Worst case if you do add one:** someone finds a gap and burns the day's free quota. The provider
-then refuses, the latch trips, the app serves canned reasoning, and it resets tomorrow. No card is
-attached to this key - that is the entire reason the provider was switched.
+Three live runs per hour per IP. The fourth degrades to canned reasoning mid-stream with a `limit`
+event and an in-theme notice - that path has now been seen working on the real deployment, not just
+in tests.
 
 ## 6. Nothing outstanding in the test harness
 
@@ -154,8 +136,11 @@ not today, nothing is written to disk or a database.
 
 - **Do not** commit a real key. `.env` and `.env*.local` are gitignored; `.env.example` carries only
   placeholders.
-- **Do not** assume the rate limiter is global until step 4 shows `"store":"redis"`.
+- **Do not** assume the rate limiter is global until step 4 shows `"store":"redis"`. It said
+  `"memory"` for a while with Upstash fully connected.
 - **Do not** add a key and tighten the caps afterwards. Tighten first.
+- **Do not** trust `x-forwarded-for` for anything that gates cost. Vercel appends to it; the caller
+  controls the left-most entry.
 - **Do not** expect the real reasoning path to have been exercised *on the deployment*. Locally it
   has: ~410 live calls across Fit 2, the injection suite and smoke checks, all clean.
 - **Do not** hand-edit `lib/resolver/fitted.ts` or `lib/resolver/calibration.ts`. They are generated

@@ -1117,3 +1117,77 @@ the sequence this repo spends four pages arguing for.
 It was also found in the wrong place: `.env.example` is a **committed** file. It was moved to
 `.env.local` before any commit, and `git log -S` confirms the key never entered history.
 
+---
+
+# ADDENDUM 4 — going live: Redis, the key, and two bugs the live run found
+
+Upstash was connected on Vercel and the key added to the deployment. Both steps turned up a real
+defect that no offline test would have caught, which is the argument for doing the verification step
+in `MORNING_CHECKLIST.md` §4 rather than trusting a dashboard.
+
+## Bug 1 — Redis was connected and completely unused
+
+Vercel's Upstash marketplace integration provisions the credentials as `KV_REST_API_URL` /
+`KV_REST_API_TOKEN`. The code read `UPSTASH_REDIS_REST_URL` / `_TOKEN`, which is what you get only if
+you copy them by hand from the Upstash console. Same REST endpoint, same token, different labels.
+
+So the database was live, the dashboard said connected, and the limiter was silently still on the
+in-memory store — the *exact* failure mode the persistent store exists to prevent, and the reason
+§4 says "do not skip the confirmation". `activeStore()` now accepts either pair, with four
+assertions covering both namings, one alone, and a URL without a token.
+
+```
+$ curl -sN "<deploy>/api/reconcile?paced=0" | head -1
+{"type":"meta", ... "store":"redis" ... }
+```
+
+## Bug 2 — the per-IP cap could be bypassed with one header
+
+Verifying a real call meant getting past my own exhausted hourly cap, and the fastest way turned out
+to be a one-line bypass:
+
+```
+$ curl -H "x-forwarded-for: 198.51.100.77" "<deploy>/api/investigate?dispute=DSP-1009"
+   → allowed, ipRemaining 2, fresh bucket
+```
+
+`clientIp()` trusted the left-most `x-forwarded-for`. That header is client-supplied, and Vercel
+*appends* the real address rather than replacing the list, so the left-most entry is whatever the
+caller typed. Anyone could mint a new bucket per request and the per-IP limit was decorative.
+
+Fixed by preferring the platform-set headers — `x-vercel-forwarded-for`, then `x-real-ip` — which
+overwrite anything the client sends. The left-most `x-forwarded-for` remains as a last resort for
+hosts that set neither, documented as not a security control. Re-tested against the deployment:
+
+```
+spoof 198.51.100.1 -> allowed              2 remaining   redis
+spoof 198.51.100.2 -> ip-limit-exceeded    0 remaining   redis
+spoof 198.51.100.3 -> allowed              0 remaining   redis
+spoof 198.51.100.4 -> ip-limit-exceeded    0 remaining   redis
+spoof 198.51.100.5 -> ip-limit-exceeded    0 remaining   redis
+```
+
+Five different spoofed addresses, one shared budget of three. Worth being precise about the blast
+radius that existed: the **daily** cap is global and Redis-backed, so even with the per-IP cap fully
+bypassed the exposure was bounded at 300 calls a day of free quota. Bounded is not the same as fine.
+
+## Live verification
+
+```
+$ curl -sN "<deploy>/api/investigate?dispute=DSP-1009&paced=0"
+meta         mode=real   reason=allowed   store=redis
+resolution   reasoningProvenance=real   confidence=0.96
+calibration  {"raw":1,"calibrated":1,"fitted":true,
+              "note":"Stated 1.00, left effectively unchanged, against 200 outcomes
+                      with known ground truth."}
+```
+
+Real reasoning, Redis-backed global caps, and Fit 2 applied to a live reply — the calibration panel
+is now showing a correction that actually ran. Token accounting increments on the deployment
+(`tokensUsedToday` non-zero), confirming the usage-key fix against the real provider.
+
+Mid-run degradation was also observed for real, unstaged: an earlier probe exhausted the hourly cap
+and the stream emitted a `limit` event partway through, then finished the resolution with canned
+reasoning. Deterministic checks, confidence and bucket were unaffected — which is the entire design
+claim, seen happening rather than asserted.
+

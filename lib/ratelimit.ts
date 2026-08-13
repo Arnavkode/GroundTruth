@@ -447,7 +447,21 @@ export async function __resetRateLimit(): Promise<void> {
 
 /** Best-effort client IP from proxy headers. */
 export function clientIp(headers: Headers): string {
+  // Order matters, and getting it wrong silently voids the per-IP cap.
+  //
+  // `x-forwarded-for` is a client-supplied header that proxies append to. Vercel
+  // appends the real address rather than replacing the list, so the left-most
+  // entry is whatever the caller typed — trusting it lets anyone mint a fresh
+  // bucket per request with one header. Verified against the live deployment:
+  // `-H "x-forwarded-for: 198.51.100.77"` walked straight past an exhausted cap.
+  //
+  // `x-vercel-forwarded-for` and `x-real-ip` are set by the platform on the way
+  // in and overwrite anything the client sent, so they are the trustworthy ones.
+  // The left-most `x-forwarded-for` stays as a last resort for hosts that do not
+  // set either — better than one shared bucket, but it is not a security control.
+  const trusted = headers.get("x-vercel-forwarded-for") ?? headers.get("x-real-ip");
+  if (trusted) return trusted.split(",")[0].trim();
   const fwd = headers.get("x-forwarded-for");
   if (fwd) return fwd.split(",")[0].trim();
-  return headers.get("x-real-ip") ?? "0.0.0.0";
+  return "0.0.0.0";
 }

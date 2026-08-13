@@ -277,3 +277,22 @@ Following that sequence was the whole point of writing it down.
 **The key was found in `.env.example`, which is committed.** It was moved to `.env.local` (gitignored)
 before any commit, and `git log -S` confirms it never entered history. `.env.example` carries an
 empty placeholder again.
+
+---
+
+## Addendum 3 — what going live changed
+
+- **Credential names are accepted from both provisioning paths.** Vercel's Upstash integration sets
+  `KV_REST_API_*`; copying from the Upstash console gives `UPSTASH_REDIS_REST_*`. Reading only one is
+  how a correctly connected database leaves the limiter silently in memory mode while every dashboard
+  says connected. Both are read, and four assertions pin it.
+- **Client IP now comes from platform-set headers, not `x-forwarded-for`.** The left-most XFF entry is
+  attacker-controlled — Vercel appends to the list rather than replacing it — so the per-IP cap could
+  be bypassed with a single header, and was, during verification. `x-vercel-forwarded-for` and
+  `x-real-ip` are set by the platform and overwrite client input. XFF stays as an off-platform
+  fallback, documented as not a security control.
+- **Both bugs were found by verifying on the deployment, not by testing offline.** Neither was
+  reachable from a local suite: one needed Vercel's own env provisioning, the other needed Vercel's
+  own header handling. That is the case for `MORNING_CHECKLIST.md` §4 existing at all.
+- **The key is now on the deployment**, with Redis-backed global caps confirmed first, in the order
+  the checklist specifies.

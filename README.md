@@ -185,7 +185,7 @@ degrades.
 | Trigger | Env var | Default |
 |---|---|---|
 | Kill switch | `DISABLE_REAL_MODE=1` | off — flip it in the dashboard, no redeploy |
-| Per IP, per hour | `RATE_LIMIT_PER_IP_PER_HOUR` | 3 |
+| Per IP, per hour | `RATE_LIMIT_PER_IP_PER_HOUR` | 3 — keyed on the platform-set client IP, not the spoofable `x-forwarded-for` |
 | Global calls per day | `DAILY_REAL_CALL_CAP` | 300 (free tier states ~1000) |
 | Live calls per upload | fixed | 10 |
 | Provider 429 | — | latches live mode off for the rest of the day |
@@ -230,9 +230,9 @@ npx tsx scripts/test-responsive.ts   # 375 / 768 / 1024 / 1440px
 
 ## Live demo
 
-https://groundtruth-jeiu5o4b6-arnav-guptas-projects-4ac946ea.vercel.app
+https://groundtruth-cl4upk4dd-arnav-guptas-projects-4ac946ea.vercel.app
 
-Publicly reachable — SSO deployment protection is off. Serving mock reasoning: the Gemini key is intentionally not on the deployment until Upstash is configured, per `MORNING_CHECKLIST.md` §4.
+Publicly reachable, running **live reasoning** on Gemini's free tier, with Upstash-backed global rate limits (`"store":"redis"` confirmed on the deployment). Three live runs per IP per hour; past that it degrades to canned reasoning mid-stream with an in-theme notice, and every number on screen is identical either way.
 
 ## Project structure
 

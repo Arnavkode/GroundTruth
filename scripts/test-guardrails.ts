@@ -318,12 +318,36 @@ async function main() {
   assert("recovered after the hour", recovered.mode === "real");
   assert("free-tier figures are echoed for display", blocked.limits.freeTierRpd === FREE_TIER.rpd);
 
-  header("10. Client IP extraction");
+  header("10. Client IP extraction — the per-IP cap is only as good as this");
+  // x-forwarded-for is client-supplied and Vercel appends to it rather than
+  // replacing it, so trusting the left-most entry lets any caller mint a fresh
+  // bucket per request. Verified the hard way against the live deployment.
   assert(
-    "uses the left-most forwarded address",
+    "platform-set x-vercel-forwarded-for wins over a spoofed x-forwarded-for",
+    clientIp(
+      new Headers({
+        "x-forwarded-for": "198.51.100.77",
+        "x-vercel-forwarded-for": "203.0.113.7",
+      }),
+    ) === "203.0.113.7",
+  );
+  assert(
+    "x-real-ip also beats a spoofed x-forwarded-for",
+    clientIp(
+      new Headers({ "x-forwarded-for": "198.51.100.77", "x-real-ip": "203.0.113.7" }),
+    ) === "203.0.113.7",
+  );
+  assert(
+    "two spoofed buckets collapse to one real one",
+    clientIp(new Headers({ "x-forwarded-for": "1.1.1.1", "x-real-ip": "203.0.113.7" })) ===
+      clientIp(new Headers({ "x-forwarded-for": "2.2.2.2", "x-real-ip": "203.0.113.7" })),
+  );
+  assert(
+    "falls back to the left-most x-forwarded-for off-platform",
     clientIp(new Headers({ "x-forwarded-for": "203.0.113.7, 70.41.3.18" })) === "203.0.113.7",
   );
   assert("falls back to x-real-ip", clientIp(new Headers({ "x-real-ip": "198.51.100.9" })) === "198.51.100.9");
+  assert("no headers at all still yields a key", clientIp(new Headers()) === "0.0.0.0");
 
   // ── 11. Credential names ──────────────────────────────────────────────────
   // Upstash arrives under two different names depending on how it was connected.
