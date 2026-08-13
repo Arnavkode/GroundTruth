@@ -1,0 +1,5 @@
+orderId,carrier,tracking,shippedAt,deliveredAt,status,signature,deliveryPostal,deliveryMatchesOrderAddress,note
+ORD-2001,Royal Mail,RM3341220088GB,2026-07-02T09:00:00Z,2026-07-04T14:10:00Z,delivered,P.RAGHUNATHAN,LS1 4DT,true,
+ORD-2003,DPD,DPD88123340,2026-07-05T08:30:00Z,2026-07-07T11:45:00Z,delivered,N.CORDERO,M1 2AB,true,
+ORD-2004,Royal Mail,RM3341220112GB,2026-07-07T09:15:00Z,2026-07-09T10:05:00Z,delivered,S.ADEYEMI,CF10 1AA,true,One item shipped against a single order
+ORD-2006,DPD,DPD88123399,2026-07-09T07:50:00Z,,in_transit,,BT1 5GS,false,Delivering to a forwarding address the customer added after checkout

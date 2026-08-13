@@ -1,0 +1,5 @@
+chatId,orderId,ts,from,text
+CHT-2004,ORD-2004,2026-07-06T09:40:00Z,customer,The checkout page froze so I clicked pay again. I have two charges of 74.00.
+CHT-2004,ORD-2004,2026-07-06T09:44:00Z,agent,I can see two captures on this order. The second is a duplicate and should be refunded.
+CHT-2005,ORD-2005,2026-07-09T14:05:00Z,customer,One of the two lids arrived cracked. Can I get part of it back?
+CHT-2005,ORD-2005,2026-07-09T14:28:00Z,agent,Approved a 40.00 partial refund. It has been authorised and will draw down shortly.

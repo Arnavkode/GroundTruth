@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { BudgetBadge, BudgetNotice } from "@/components/budget";
 import {
   CheckRow,
@@ -37,6 +37,20 @@ export default function ReconcilePage() {
   const { state, start, reset } = useResolverStream();
   const [open, setOpen] = useState<string | null>(null);
   const [upload, setUpload] = useState<{ dataset: EvidenceDataset; report: IngestReport } | null>(null);
+  /**
+   * The run control sits at the top of the page and the upload panel at the
+   * bottom, so a successful upload used to leave you staring at "awaiting
+   * resolution" with the button scrolled out of sight. The panel now offers the
+   * action where the upload happened, and both routes go through one function.
+   */
+  const runControls = useRef<HTMLDivElement>(null);
+  const run = () => {
+    setOpen(null);
+    // Same endpoint, same resolver — only the evidence source differs.
+    if (upload) start("/api/reconcile", { dataset: upload.dataset });
+    else start("/api/reconcile");
+    runControls.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   const grouped = useMemo(() => {
     const g: Record<ResolvedStatus, Resolution[]> = {
@@ -83,17 +97,8 @@ export default function ReconcilePage() {
         </div>
       </header>
 
-      <div className="mt-7 flex flex-wrap items-center gap-3">
-        <button
-          className="btn-primary"
-          onClick={() => {
-            setOpen(null);
-            // Same endpoint, same resolver — only the evidence source differs.
-            if (upload) start("/api/reconcile", { dataset: upload.dataset });
-            else start("/api/reconcile");
-          }}
-          disabled={running}
-        >
+      <div ref={runControls} className="mt-7 flex flex-wrap items-center gap-3">
+        <button className="btn-primary" onClick={run} disabled={running}>
           {running ? "Resolving…" : state.phase === "done" ? "Run again" : "Run reconciliation"}
         </button>
         {state.phase !== "idle" && (
@@ -266,6 +271,16 @@ export default function ReconcilePage() {
               onLoaded={(dataset, report) => setUpload({ dataset, report })}
               onCleared={() => setUpload(null)}
             />
+            {upload && (
+              <div className="card mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 border-signal/40 bg-signal/[0.05] px-5 py-4">
+                <button className="btn-primary" onClick={run} disabled={running}>
+                  Resolve these {upload.report.totalRows} rows
+                </button>
+                <p className="text-sm leading-relaxed text-muted">
+                  Loaded and validated — nothing has been resolved yet.
+                </p>
+              </div>
+            )}
           </div>
           <ReconcileIdle uploaded={upload} />
         </>

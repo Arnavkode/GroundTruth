@@ -1,0 +1,3 @@
+disputeId,transactionRef,orderId,reasonCode,reasonText,network,amountCents,filedAt,respondBy,cardholderStatement,label,blurb
+DSP-2001,TXN-2001,ORD-2001,13.1,Merchandise or services not received,Visa,12500,2026-07-22T09:00:00Z,2026-08-05T09:00:00Z,The skillet never arrived and nobody was home to sign,Non-receipt on a signed delivery,Worth fighting - delivered signed to the order address with AVS and CVV both matching
+DSP-2004,TXN-2004,ORD-2004,12.6.1,Duplicate processing,Visa,7400,2026-07-20T15:30:00Z,2026-08-03T15:30:00Z,I was charged twice for one knife,Duplicate charge on our own ledger,Not worth fighting - our settlement export shows both captures

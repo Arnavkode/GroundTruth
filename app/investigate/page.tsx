@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { BudgetBadge, BudgetNotice } from "@/components/budget";
 import {
   CheckRow,
@@ -68,6 +68,12 @@ export default function InvestigatePage() {
    * other.
    */
   const disputes = upload ? upload.dataset.disputes : fixtureDisputes;
+  /**
+   * The dispute list is above the upload panel, so a successful upload left you
+   * at the bottom of the page with nothing to click. Bring the list back into
+   * view — the cards are the run control here.
+   */
+  const disputeList = useRef<HTMLElement>(null);
   const startDispute = (disputeId: string) => {
     setActive(disputeId);
     const url = `/api/investigate?dispute=${encodeURIComponent(disputeId)}`;
@@ -131,12 +137,17 @@ export default function InvestigatePage() {
         </div>
       </header>
 
-      <section className="mt-8">
+      <section ref={disputeList} className="mt-8">
         <h2 className="text-micro uppercase tracking-widest text-muted">
           {upload
             ? `Disputes in your upload — ${disputes.length}`
             : `Open disputes — ${disputes.length}`}
         </h2>
+        {upload && disputes.length > 0 && (
+          <p className="mt-2 text-sm leading-relaxed text-muted">
+            Loaded and validated — pick one to investigate. Nothing has been resolved yet.
+          </p>
+        )}
         {disputes.length === 0 && (
           <p className="card mt-3 px-5 py-4 text-sm leading-relaxed text-muted">
             <span className="text-ink">Your upload has no disputes in it.</span> Investigate needs a{" "}
@@ -186,6 +197,7 @@ export default function InvestigatePage() {
             onLoaded={(dataset, report) => {
               setUpload({ dataset, report });
               setActive(null);
+              disputeList.current?.scrollIntoView({ behavior: "smooth", block: "start" });
             }}
             onCleared={() => {
               setUpload(null);

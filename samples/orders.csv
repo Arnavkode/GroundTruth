@@ -1,0 +1,7 @@
+orderId,transactionRef,customerName,email,placedAt,totalCents,currency,items,line1,city,region,postal,country,avsResult,cvvResult,ip,deviceId
+ORD-2001,TXN-2001,Priya Raghunathan,priya@example.test,2026-07-01T10:10:00Z,12500,USD,SKU-11|Cast iron skillet|1|12500,8 Marlow Court,Leeds,ENG,LS1 4DT,GB,Y,M,10.2.4.11,dev-2001
+ORD-2002,TXN-2002,Tomas Erikson,tomas@example.test,2026-07-03T16:38:00Z,8900,USD,SKU-22|Wool throw|1|8900,19 Faraday Lane,Bristol,ENG,BS1 6QT,GB,Y,M,10.2.4.19,dev-2002
+ORD-2003,TXN-2003,Nadia Cordero,nadia@example.test,2026-07-04T18:02:00Z,24000,USD,SKU-33|Espresso grinder|1|24000,2 Kestrel Way,Manchester,ENG,M1 2AB,GB,Y,M,10.2.4.33,dev-2003
+ORD-2004,TXN-2004,Samuel Adeyemi,samuel@example.test,2026-07-06T09:18:00Z,7400,USD,SKU-44|Chef knife|1|7400,44 Hollow Road,Cardiff,WLS,CF10 1AA,GB,Y,M,10.2.4.44,dev-2004
+ORD-2005,TXN-2005,Grace Whitlock,grace@example.test,2026-07-07T10:58:00Z,15900,USD,SKU-55|Dutch oven|1|15900,7 Sandbank Rise,Glasgow,SCT,G1 3TT,GB,Y,M,10.2.4.55,dev-2005
+ORD-2006,TXN-2006,Elliot Mensah,elliot@example.test,2026-07-08T13:40:00Z,31000,USD,SKU-66|Stand mixer|1|31000,31 Quarry Street,Belfast,NIR,BT1 5GS,GB,N,N,10.2.4.66,dev-2006
