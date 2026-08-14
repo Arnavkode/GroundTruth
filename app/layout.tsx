@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { GeistMono } from "geist/font/mono";
 import { GeistSans } from "geist/font/sans";
 import Link from "next/link";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import { BackdropField } from "@/components/decor";
 import { NavLinkIndicator, PageTransition } from "@/components/PageTransition";
 import { ThemeToggle, themeBootScript } from "@/components/theme";
@@ -34,6 +35,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <PageTransition>{children}</PageTransition>
         </main>
         <SiteFooter />
+        <SpeedInsights />
       </body>
     </html>
   );
