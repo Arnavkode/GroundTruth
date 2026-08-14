@@ -4,6 +4,16 @@ import { useRef, useState } from "react";
 import { LIMITS, SOURCE_KINDS, type IngestReport, type SourceKind } from "@/lib/ingest";
 import type { EvidenceDataset } from "@/lib/resolver/types";
 
+/** Served from public/samples — downloadable, and loadable in one click. */
+const SAMPLE_FILE: Record<SourceKind, string> = {
+  bank: "bank.csv",
+  settlement: "settlement.csv",
+  orders: "orders.csv",
+  shipments: "shipments.csv",
+  chats: "chats.csv",
+  disputes: "disputes.csv",
+};
+
 const SOURCE_HELP: Record<SourceKind, { label: string; columns: string }> = {
   bank: { label: "Bank statement", columns: "id, postedAt, descriptor, amountCents, direction, memoRef" },
   settlement: {
@@ -59,6 +69,46 @@ export function UploadPanel({
     }
   }
 
+  /**
+   * One click from "I have no data" to a resolved run.
+   *
+   * Fetches the six bundled sample files and posts them through the *same*
+   * endpoint a manual upload uses — not a shortcut that bypasses validation,
+   * because the point of offering them is to show the ingestion path working,
+   * caps and per-row errors included.
+   */
+  async function loadSamples() {
+    setBusy(true);
+    setError(null);
+    setReport(null);
+    try {
+      const fd = new FormData();
+      await Promise.all(
+        SOURCE_KINDS.map(async (kind) => {
+          const res = await fetch(`/samples/${SAMPLE_FILE[kind]}`);
+          if (!res.ok) throw new Error(`${SAMPLE_FILE[kind]} (${res.status})`);
+          fd.append(kind, new File([await res.blob()], SAMPLE_FILE[kind], { type: "text/csv" }));
+        }),
+      );
+      fd.append("label", "Sample merchant book — July 2026");
+      // The schedule these samples were written against. Get it wrong and every
+      // row flags on fees, which would make the samples look broken.
+      fd.append("feePercent", "2.9");
+      fd.append("feeFixedCents", "30");
+
+      const res = await fetch("/api/ingest", { method: "POST", body: fd });
+      const json = await res.json();
+      setReport(json.report);
+      if (json.dataset) onLoaded(json.dataset, json.report);
+    } catch (e) {
+      setError(
+        `Could not load the sample files: ${(e as Error).message}. They are also downloadable individually below.`,
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const fatal = report?.fatal ?? [];
   const issues = report?.issues ?? [];
   const truncations = report?.truncations ?? [];
@@ -77,6 +127,61 @@ export function UploadPanel({
         than dropped. The caps are cost controls: they bound how many live model calls one upload can
         trigger and how much text can reach a prompt.
       </p>
+
+      {/*
+        The most common reason someone never tries an upload is not having a
+        file in the right shape. Both routes out of that are here: take the
+        files and inspect them, or load them in one click.
+      */}
+      <div className="mt-4 rounded-lg border border-signal/30 bg-signal/[0.04] px-4 py-3.5">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <button
+            type="button"
+            className="btn-quiet border-signal/40 text-signal"
+            onClick={loadSamples}
+            disabled={busy || disabled}
+          >
+            {busy ? "Fetching…" : "Use the sample data"}
+          </button>
+          <p className="text-sm leading-relaxed text-muted">
+            32 rows, six files, no typing. Or take them and edit them:
+          </p>
+        </div>
+        {/* Chips rather than inline links: a bare <a> was 16px tall, under the
+            44px touch minimum, which the responsive suite caught. */}
+        <ul className="mt-2.5 flex flex-wrap gap-2">
+          {SOURCE_KINDS.map((kind) => (
+            <li key={kind}>
+              <a
+                href={`/samples/${SAMPLE_FILE[kind]}`}
+                download
+                className="flex min-h-[44px] items-center gap-1.5 rounded border border-signal/30 bg-paper px-3 font-mono text-xs text-signal transition-colors hover:border-signal hover:bg-signal/[0.06]"
+              >
+                <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden>
+                  <path d="M6 1v7m0 0L3.5 5.5M6 8l2.5-2.5M2 10.5h8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                {SAMPLE_FILE[kind]}
+              </a>
+            </li>
+          ))}
+          <li>
+            {/* In the chip row rather than inline in the prose below: an inline
+                link renders at 16px, under the touch-target minimum. */}
+            <a
+              href="/samples/README.md"
+              className="flex min-h-[44px] items-center rounded border border-rule bg-paper px-3 text-xs text-muted transition-colors hover:border-ink/30 hover:text-ink"
+            >
+              what each case is
+            </a>
+          </li>
+        </ul>
+        <p className="mt-2 text-xs leading-relaxed text-muted">
+          They go through this same form and the same validation — nothing is bypassed. The set is
+          built so the run is not all green: a duplicate capture that reconciles perfectly against the
+          bank, a weekend posting lag, a refund authorised but not drawn, an orphan bank debit, and two
+          disputes with opposite answers.
+        </p>
+      </div>
 
       <form ref={formRef} onSubmit={submit} className="mt-5 space-y-4">
         <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto]">

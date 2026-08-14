@@ -1526,3 +1526,40 @@ built.
 
 `.logs/` was already gitignored and never tracked; the scratch files were local only, and are
 deleted. `docs/` is tracked deliberately - it holds the two captured artifacts.
+
+## Addendum 6b - sample data a visitor can actually get
+
+The samples existed only in the repo, which is no use to someone looking at the deployed app: the
+most common reason nobody tries an upload is not having a file in the right shape. Both ways out of
+that are now in the upload panel, on both workflows.
+
+- **Use the sample data** fetches the six CSVs and posts them to `/api/ingest` - the same endpoint,
+  the same caps, the same per-row validation a manual upload gets. Deliberately not a shortcut that
+  injects the dataset directly, because the point of offering them is to show the ingestion path
+  working. The test asserts the POST actually happened rather than trusting the result.
+- **Six download chips** for anyone who wants to read or edit the files first, plus the README that
+  says what each case is.
+
+The files moved to `public/samples/` so there is one copy, served and browsable, rather than a repo
+copy and a served copy that drift. An assertion pins that.
+
+Two defects of my own, both caught by existing suites rather than by inspection:
+
+**The new button broke an existing test, and would have confused a person.** `test-investigate-upload`
+looked for a button matching `/validate|upload|load/i` and started matching *"Load the sample set"*
+instead of *"Validate and load"* - so it silently tested the sample set rather than its own upload.
+Two labels containing "load" next to each other is bad UI regardless of tests, so the button became
+*"Use the sample data"* and the selectors became exact.
+
+**The download links failed the 44px touch-target minimum at 375px.** Bare inline `<a>` elements
+render at 16px; the responsive suite failed twice - once for the file links, then again for the
+"what each case is" link left inline in the prose. Both are now chips in the same row at 44px. This
+is the suite doing exactly its job: neither would have been visible reading the diff.
+
+```
+samples             PASS   files served, 6 download links, POST /api/ingest confirmed, 32 rows
+                           accepted, duplicate/orphan/refund all found in the resulting run
+investigate-upload  PASS
+responsive          PASS   375/768/1024/1440 x light/dark
+e2e                 PASS
+```

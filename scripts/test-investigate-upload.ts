@@ -66,7 +66,9 @@ DSP-U1,TXN-U1,ORD-U1,13.1,Merchandise not received,Visa,10000,2026-06-20T09:00:0
     await page.locator(`input[name="${field}"]`).setInputFiles(file(name, body));
   }
 
-  await page.getByRole("button", { name: /validate|upload|load/i }).first().click();
+  // Exact, not fuzzy: the panel also offers "Use the sample data", and a loose
+  // /load/i once matched that instead and silently tested the wrong thing.
+  await page.getByRole("button", { name: "Validate and load", exact: true }).click();
   await page.waitForSelector("text=/Disputes in your upload/i", { timeout: 20_000 });
 
   const heading = (await page.locator("text=/Disputes in your upload/i").first().textContent()) ?? "";

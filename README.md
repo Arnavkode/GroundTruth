@@ -117,6 +117,16 @@ POST /api/reconcile     { dataset }                → SSE stream, same as the f
 POST /api/investigate   { dataset } ?dispute=ID    → SSE stream, same as the fixture run
 ```
 
+**You do not need your own data to try it.** Both workflows carry a *Use the sample data* button that
+fetches six bundled CSVs and pushes them through the same `/api/ingest` endpoint a manual upload uses
+— nothing is bypassed, caps and per-row validation included. The same six files are downloadable
+individually from the panel (or from [`public/samples/`](public/samples/)) if you would rather edit
+them first. The set is built so the run is not all green: a duplicate capture that reconciles
+perfectly against the bank, a weekend posting lag, a refund authorised but not drawn, an orphan bank
+debit, and two disputes with opposite answers.
+
+![The sample-data block in the upload panel](docs/sample-data.png)
+
 **Both workflows take uploads, not just Reconcile.** Include a `disputes` file and the Investigate
 page lists the chargebacks from it instead of the bundled ones — same checks, same fitted weights,
 same rebuttal engine, and a representment letter citing your records. `npm run test:investigate-upload`
@@ -239,6 +249,7 @@ npm run fit:weights      # Fit 1 — check weights by logistic regression (no ke
 npm run fit:calibrate    # Fit 2 — calibrate stated confidence (needs GEMINI_API_KEY; refuses without)
 npm run test:injection-live  # 4 adversarial payloads against the real model (needs GEMINI_API_KEY)
 npm run test:investigate-upload  # uploads a dispute and investigates it, through a real browser
+npm run test:samples     # the sample CSVs are served, downloadable, and load in one click
 npm run test:ingest      # ingestion, input caps, prompt-injection defence
 npm run test:e2e         # both workflows over HTTP; start the server with
                          #   RATE_LIMIT_INGEST_PER_HOUR=1000 npm run start
